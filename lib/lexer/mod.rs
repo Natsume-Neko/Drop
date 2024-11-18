@@ -4,7 +4,6 @@ use std::iter::Peekable;
 use std::str::Chars;
 use crate::lexer::token::*;
 
-
 pub struct Lexer;
 
 impl Lexer {
