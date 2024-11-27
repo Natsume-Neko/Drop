@@ -1,0 +1,18 @@
+[package]
+name = "DropLang"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "drop_lib"
+path = "lib/drop.rs"
+
+[[bin]]
+name = "drop_exe"
+path = "src/main.rs"
+
+[[bin]]
+name = "drop_repl"
+path = "repl/main.rs"
+
+[dependencies]
