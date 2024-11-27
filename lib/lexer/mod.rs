@@ -7,7 +7,7 @@ use crate::lexer::token::*;
 pub struct Lexer;
 
 impl Lexer {
-    pub fn lex_tokens(input: String) -> Vec<Token> {
+    pub fn lex_tokens(input: String) -> Tokens {
         let mut input_chars = input.chars().peekable();
         let mut tokens = vec![];
         loop {

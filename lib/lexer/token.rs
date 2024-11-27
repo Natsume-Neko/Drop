@@ -1,4 +1,4 @@
-
+pub type Tokens = Vec<Token>;
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum Token {
     Illegal,
