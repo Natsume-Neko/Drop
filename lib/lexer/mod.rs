@@ -1,17 +1,17 @@
 pub mod token;
+mod cursor;
 
-use std::iter::Peekable;
-use std::str::Chars;
+use crate::lexer::cursor::Cursor;
 use crate::lexer::token::*;
 
 pub struct Lexer;
 
 impl Lexer {
-    pub fn lex_tokens(input: String) -> Tokens {
-        let mut input_chars = input.chars().peekable();
+    pub fn lex_tokens(input: &str) -> Tokens {
+        let mut input_chars = Cursor::new(input);
         let mut tokens = vec![];
         loop {
-            match input_chars.peek() {
+            match input_chars.peek_first() {
                 None => {
                     tokens.push(Self::lex_token(&mut input_chars));
                     break;
@@ -27,7 +27,7 @@ impl Lexer {
         tokens
     }
 
-    fn lex_token(input: &mut Peekable<Chars>) -> Token {
+    fn lex_token(input: &mut Cursor) -> Token {
         match input.next() {
             Some(';') => Token::SemiColon,
             Some(',') => Token::Comma,
@@ -40,7 +40,7 @@ impl Lexer {
             Some('/') => Token::Divide,
             Some('*') => Token::Multiply,
             Some('=') => {
-                match input.peek() {
+                match input.peek_first() {
                     Some('=') => {
                         input.next();
                         Token::Equal
@@ -49,7 +49,7 @@ impl Lexer {
                 }
             }
             Some('!') => {
-                match input.peek() {
+                match input.peek_first() {
                     Some('=') => {
                         input.next();
                         Token::NotEqual
@@ -58,7 +58,7 @@ impl Lexer {
                 }
             }
             Some('<') => {
-                match input.peek() {
+                match input.peek_first() {
                     Some('=') => {
                         input.next();
                         Token::LessEqual
@@ -67,7 +67,7 @@ impl Lexer {
                 }
             }
             Some('>') => {
-                match input.peek() {
+                match input.peek_first() {
                     Some('=') => {
                         input.next();
                         Token::GreaterEqual
@@ -75,10 +75,10 @@ impl Lexer {
                     _ => Token::Greater
                 }
             }
-            Some(c) if c.is_alphabetic() => {
+            Some(c) if c.is_alphabetic() || c.eq(&'_') => {
                 let mut s = String::new();
                 s.push(c);
-                while let Some(ch) = input.peek() {
+                while let Some(ch) = input.peek_first() {
                     if ch.is_alphabetic() || ch.is_ascii_digit() || ch.eq(&'_') {
                         s.push(input.next().unwrap());
                     } else {
@@ -99,7 +99,7 @@ impl Lexer {
             Some(c) if c.is_ascii_digit() => {
                 let mut s = String::new();
                 s.push(c);
-                while let Some(ch) = input.peek() {
+                while let Some(ch) = input.peek_first() {
                     if ch.is_ascii_digit() {
                         s.push(input.next().unwrap());
                     } else {
@@ -136,7 +136,7 @@ mod test {
             }\
             return false;\
             ");
-        let result = Lexer::lex_tokens(s);
+        let result = Lexer::lex_tokens(s.as_str());
         let expected_result = vec![
             Token::If,
             Token::LParen,
