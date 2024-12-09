@@ -8,8 +8,8 @@ pub enum Stmt {
 pub enum Expr {
     IdentExpr(Ident),
     LiteralExpr(Literal),
-    PrefixExpr(Prefix, Box<Expr>),
-    InfixExpr(Box<Expr>, Infix, Box<Expr>),
+    UnaryExpr(UnaryOp, Box<Expr>),
+    BinExpr(Box<Expr>, BinOp, Box<Expr>),
 }
 
 #[derive(Eq, PartialEq, Clone, Debug)]
@@ -21,13 +21,13 @@ pub enum Literal {
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub struct Ident(pub String);
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub enum Prefix {
-    PrefixPlus,
-    PrefixMinus,
+pub enum UnaryOp {
+    UnaryPlus,
+    UnaryMinus,
     Not,
 }
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub enum Infix {
+pub enum BinOp {
     Plus,
     Minus,
     Divide,
