@@ -7,6 +7,10 @@ pub mod ast;
 pub struct TokenCursor<'a> {
     tokens: Iter<'a, Token>,
 }
+pub struct ParseError {
+    token: Token,
+    message: String,
+}
 impl<'a> TokenCursor {
     pub fn new(input: &'a Tokens) -> Self {
         Self {
@@ -23,6 +27,7 @@ impl<'a> TokenCursor {
 pub struct Parser<'a> {
     previous: Token,
     token_cursor: TokenCursor<'a>,
+    errors: Vec<ParseError>
 }
 
 impl<'a> Parser {
@@ -30,6 +35,7 @@ impl<'a> Parser {
         Self {
             previous: Token::EOF,
             token_cursor: TokenCursor::new(tokens),
+            errors: vec![],
         }
     }
     fn advance(&mut self) {
@@ -45,136 +51,157 @@ impl<'a> Parser {
             None => Token::EOF,
         }
     }
-    fn parse_expr(&mut self) -> Expr {
+    fn error(&mut self, message: &str, token: Token) {
+        self.errors.push(
+            ParseError {
+                token,
+                message: message.to_string(),
+            }
+        )
+    }
+    fn parse_expr(&mut self) -> Result<Expr, ()> {
         self.parse_equality()
     }
-    fn parse_equality(&mut self) -> Expr {
-        let mut expr = self.parse_comparison();
+    fn parse_equality(&mut self) -> Result<Expr, ()> {
+        let mut expr = self.parse_comparison()?;
         loop {
             match self.peek() {
                 Token::Equal => {
                     self.advance();
-                    let right = self.parse_comparison();
+                    let right = self.parse_comparison()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::Equal, Box::from(right));
                 }
                 Token::NotEqual => {
                     self.advance();
-                    let right = self.parse_comparison();
+                    let right = self.parse_comparison()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::NotEqual, Box::from(right));
                 }
                 _ => break
             }
         }
-        expr
+        Ok(expr)
     }
-    fn parse_comparison(&mut self) -> Expr {
-        let mut expr = self.parse_term();
+    fn parse_comparison(&mut self) -> Result<Expr, ()> {
+        let mut expr = self.parse_term()?;
         loop {
             match self.peek() {
                 Token::Less => {
                     self.advance();
-                    let right = self.parse_term();
+                    let right = self.parse_term()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::Less, Box::from(right));
                 }
                 Token::LessEqual => {
                     self.advance();
-                    let right = self.parse_term();
+                    let right = self.parse_term()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::LessEqual, Box::from(right));
                 }
                 Token::Greater => {
                     self.advance();
-                    let right = self.parse_term();
+                    let right = self.parse_term()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::Greater, Box::from(right));
                 }
                 Token::GreaterEqual => {
                     self.advance();
-                    let right = self.parse_term();
+                    let right = self.parse_term()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::GreaterEqual, Box::from(right));
                 }
                 _ => break
             }
         }
-        expr
+        Ok(expr)
     }
-    fn parse_term(&mut self) -> Expr {
-        let mut expr = self.parse_factor();
+    fn parse_term(&mut self) -> Result<Expr, ()> {
+        let mut expr = self.parse_factor()?;
         loop {
             match self.peek() {
                 Token::Plus => {
                     self.advance();
-                    let right = self.parse_factor();
+                    let right = self.parse_factor()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::Plus, Box::from(right));
                 }
                 Token::Minus => {
                     self.advance();
-                    let right = self.parse_factor();
+                    let right = self.parse_factor()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::Minus, Box::from(right));
                 }
                 _ => break
             }
         }
-        expr
+        Ok(expr)
     }
-    fn parse_factor(&mut self) -> Expr {
-        let mut expr = self.parse_unary();
+    fn parse_factor(&mut self) -> Result<Expr, ()> {
+        let mut expr = self.parse_unary()?;
         loop {
             match self.peek() {
                 Token::Multiply => {
                     self.advance();
-                    let right = self.parse_unary();
+                    let right = self.parse_unary()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::Multiply, Box::from(right));
                 }
                 Token::Divide => {
                     self.advance();
-                    let right = self.parse_unary();
+                    let right = self.parse_unary()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::Divide, Box::from(right));
                 }
                 _ => break
             }
         }
-        expr
+        Ok(expr)
     }
-    fn parse_unary(&mut self) -> Expr {
+    fn parse_unary(&mut self) -> Result<Expr, ()> {
         match self.peek() {
             Token::Minus => {
                 self.advance();
-                Expr::UnaryExpr(UnaryOp::UnaryMinus, Box::from(self.parse_unary()))
+                let expr = self.parse_unary()?;
+                Ok(Expr::UnaryExpr(UnaryOp::UnaryMinus, Box::from(expr)))
             },
             Token::Plus => {
                 self.advance();
-                Expr::UnaryExpr(UnaryOp::UnaryPlus, Box::from(self.parse_unary()))
+                let expr = self.parse_unary()?;
+                Ok(Expr::UnaryExpr(UnaryOp::UnaryPlus, Box::from(expr)))
             },
             Token::Not => {
                 self.advance();
-                Expr::UnaryExpr(UnaryOp::Not, Box::from(self.parse_unary()))
+                let expr = self.parse_unary()?;
+                Ok(Expr::UnaryExpr(UnaryOp::Not, Box::from(expr)))
             },
             _ => {
                 self.parse_primary()
             },
         }
     }
-    fn parse_primary(&mut self) -> Expr {
+    fn parse_primary(&mut self) -> Result<Expr, ()> {
         match self.peek() {
             Token::Ident(ident) => {
                 self.advance();
-                Expr::IdentExpr(Ident(ident))
+                Ok(Expr::IdentExpr(Ident(ident)))
             },
             Token::BooleanLiteral(literal) => {
                 self.advance();
-                Expr::LiteralExpr(Literal::BoolLiteral(literal))
+                Ok(Expr::LiteralExpr(Literal::BoolLiteral(literal)))
             },
             Token::IntLiteral(literal) => {
                 self.advance();
-                Expr::LiteralExpr(Literal::IntLiteral(literal))
+                Ok(Expr::LiteralExpr(Literal::IntLiteral(literal)))
             },
             Token::LParen => {
                 self.advance();
-                self.parse_expr()
+                let expr = self.parse_expr()?;
+                match self.peek() {
+                    Token::RParen => {
+                        self.advance();
+                        Ok(expr)
+                    },
+                    _ => {
+                        self.error("Expected ')' after expression", self.previous.clone());
+                        Err(())
+                    },
+                }
             },
-            _ => {
-                self.parse_expr()
+            tok => {
+                self.error("Unexpected Token", tok.clone());
+                Err(())
             }
-            // todo: Need to handle syntax error!!!
         }
     }
 }

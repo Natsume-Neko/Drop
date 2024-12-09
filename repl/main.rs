@@ -14,7 +14,7 @@ fn main() {
         let mut input = String::new();
         match io::stdin().read_line(&mut input) {
             Ok(_) => {
-                let tokens = lexer::Lexer::lex_tokens(input);
+                let tokens = lexer::Lexer::lex_tokens(input.as_str());
                 for tok in tokens.iter() {
                     println!("[{:?}]", tok);
                 }
