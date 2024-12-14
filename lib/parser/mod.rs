@@ -1,6 +1,6 @@
 use std::slice::Iter;
 use crate::lexer::token::{Token, Tokens};
-use crate::parser::ast::{BinOp, Expr, Ident, Literal, UnaryOp};
+use crate::parser::ast::{BinOp, Expr, Ident, Literal, Program, Stmt, UnaryOp};
 
 pub mod ast;
 
@@ -59,8 +59,108 @@ impl<'a> Parser {
             }
         )
     }
+    fn synchronize(&mut self) {
+        loop {
+            match self.peek() {
+                Token::Let | Token::If | Token::Return | Token::Function | Token::EOF => {
+                    return;
+                }
+                Token::SemiColon => {
+                    self.advance();
+                    return;
+                }
+                _ => self.advance()
+            }
+        }
+    }
+
+    pub fn parse(&mut self) -> Program {
+        let mut statements = vec![];
+        while self.peek() != Token::EOF {
+            match self.parse_stmt() {
+                Ok(stmt) => {
+                    statements.push(stmt);
+                }
+                Err(_) => {
+                    self.synchronize()
+                }
+            }
+        }
+        statements
+    }
+    fn parse_stmt(&mut self) -> Result<Stmt, ()> {
+        match self.peek() {
+            Token::Let => {
+                self.advance();
+                self.parse_let()
+            }
+            _ => {
+                self.parse_expr_stmt()
+            }
+        }
+    }
+    fn parse_let(&mut self) -> Result<Stmt, ()> {
+        if let Token::Ident(ident) = self.peek() {
+            self.advance();
+            match self.peek() {
+                Token::Assign => {
+                    let expr = self.parse_expr()?;
+                    match self.peek() {
+                        Token::SemiColon => {
+                            self.advance();
+                            Ok(Stmt::LetStmt(Ident(ident), expr))
+                        }
+                        _ => {
+                            self.error("Expected ';' after statement", self.previous.clone());
+                            Err(())
+                        }
+                    }
+                }
+                Token::SemiColon => {
+                    self.advance();
+                    Ok(Stmt::LetStmt(Ident(ident.clone()), Expr::IdentExpr(Ident(ident))))
+                }
+                _ => {
+                    self.error("Expected ';' after statement", self.previous.clone());
+                    Err(())
+                }
+            }
+        } else {
+            self.error("Expect identifier after 'let'", self.previous.clone());
+            Err(())
+        }
+    }
+    fn parse_expr_stmt(&mut self) -> Result<Stmt, ()> {
+        let expr = self.parse_expr()?;
+        match self.peek() {
+            Token::SemiColon => {
+                self.advance();
+                Ok(Stmt::ExprStmt(expr))
+            },
+            _ => {
+                self.error("Expected ';' after expression", self.previous.clone());
+                Err(())
+            }
+        }
+    }
     fn parse_expr(&mut self) -> Result<Expr, ()> {
-        self.parse_equality()
+        self.parse_assignment()
+    }
+    fn parse_assignment(&mut self) -> Result<Expr, ()> {
+        let left = self.parse_equality()?;
+        match self.peek() {
+            Token::Assign => {
+                self.advance();
+                let expr = self.parse_equality()?;
+                if let Expr::IdentExpr(ident) = left {
+                    Ok(Expr::AssignmentExpr(ident, Box::from(expr)))
+                } else {
+                    self.error("Illegal assignment", self.previous.clone());
+                    Err(())
+                }
+            }
+            _ => Ok(left)
+        }
     }
     fn parse_equality(&mut self) -> Result<Expr, ()> {
         let mut expr = self.parse_comparison()?;

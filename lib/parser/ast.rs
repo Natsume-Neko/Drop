@@ -8,6 +8,7 @@ pub enum Stmt {
 pub enum Expr {
     IdentExpr(Ident),
     LiteralExpr(Literal),
+    AssignmentExpr(Ident, Box<Expr>),
     UnaryExpr(UnaryOp, Box<Expr>),
     BinExpr(Box<Expr>, BinOp, Box<Expr>),
 }
