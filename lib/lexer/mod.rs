@@ -75,6 +75,25 @@ impl Lexer {
                     _ => Token::Greater
                 }
             }
+            Some('"') => {
+                let mut s = String::new();
+                loop {
+                    match input.peek_first() {
+                        Some('\n') | Some('\r') | None => {
+                            input.next();
+                            return Token::Illegal
+                        }
+                        Some('"') => {
+                            input.next();
+                            return Token::StringLiteral(s)
+                        }
+                        Some(ch) => {
+                            input.next();
+                            s.push(ch)
+                        }
+                    }
+                }
+            }
             Some(c) if c.is_alphabetic() || c.eq(&'_') => {
                 let mut s = String::new();
                 s.push(c);
@@ -91,6 +110,8 @@ impl Lexer {
                     "return" => Token::Return,
                     "if" => Token::If,
                     "else" => Token::Else,
+                    "while" => Token::While,
+                    "for" => Token::For,
                     "true" => Token::BooleanLiteral(true),
                     "false" => Token::BooleanLiteral(false),
                     _ => Token::Ident(s)
@@ -134,6 +155,7 @@ mod test {
             } else if (a < 30) {\
                 return true;\
             }\
+            let x = \"hello world!\"\
             return false;\
             ");
         let result = Lexer::lex_tokens(s.as_str());
@@ -191,6 +213,10 @@ mod test {
             Token::BooleanLiteral(true),
             Token::SemiColon,
             Token::RBrace,
+            Token::Let,
+            Token::Ident("x".to_owned()),
+            Token::Assign,
+            Token::StringLiteral("hello world!".to_owned()),
             Token::Return,
             Token::BooleanLiteral(false),
             Token::SemiColon,

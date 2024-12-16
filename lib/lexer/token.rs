@@ -7,6 +7,7 @@ pub enum Token {
     Ident(String),
     IntLiteral(i64),
     BooleanLiteral(bool),
+    StringLiteral(String),
 
     Assign,
     Plus,
@@ -33,5 +34,7 @@ pub enum Token {
     Let,
     If,
     Else,
+    While,
+    For,
     Return,
 }

@@ -2,7 +2,10 @@ pub type Program = Vec<Stmt>;
 pub enum Stmt {
     LetStmt(Ident, Expr),
     ReturnStmt(Expr),
-    ExprStmt(Expr)
+    ExprStmt(Expr),
+    BlockStmt(Vec<Stmt>),
+    IfStmt(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    WhileStmt(Expr, Box<Stmt>)
 }
 
 pub enum Expr {

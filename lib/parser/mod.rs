@@ -11,7 +11,7 @@ pub struct ParseError {
     token: Token,
     message: String,
 }
-impl<'a> TokenCursor {
+impl<'a> TokenCursor<'a> {
     pub fn new(input: &'a Tokens) -> Self {
         Self {
             tokens: input.into_iter()
@@ -30,7 +30,7 @@ pub struct Parser<'a> {
     errors: Vec<ParseError>
 }
 
-impl<'a> Parser {
+impl<'a> Parser<'a> {
     pub fn new(tokens: &'a Tokens) -> Self {
         Self {
             previous: Token::EOF,
@@ -94,9 +94,76 @@ impl<'a> Parser {
                 self.advance();
                 self.parse_let()
             }
+            Token::LBrace => {
+                self.advance();
+                self.parse_block()
+            }
+            Token::If => {
+                self.advance();
+                self.parse_if()
+            }
+            Token::While => {
+                self.advance();
+                self.parse_while()
+            }
             _ => {
                 self.parse_expr_stmt()
             }
+        }
+    }
+    fn parse_while(&mut self) -> Result<Stmt, ()> {
+        let condition = self.parse_expr()?;
+        if self.peek() != Token::LBrace {
+            self.error("Expect '{' after while condition", self.previous.clone());
+            return Err(())
+        }
+        self.advance();
+        let loop_block = self.parse_block()?;
+        Ok(Stmt::WhileStmt(condition, Box::from(loop_block)))
+    }
+    fn parse_if(&mut self) -> Result<Stmt, ()> {
+        let condition = self.parse_expr()?;
+        if self.peek() != Token::LBrace {
+            self.error("Expect '{' after if condition", self.previous.clone());
+            return Err(())
+        }
+        self.advance();
+        let then_branch = self.parse_block()?;
+        if self.peek() == Token::Else {
+            self.advance();
+            if self.peek() == Token::If {
+                self.advance();
+                let else_branch = self.parse_if()?;
+                Ok(Stmt::IfStmt(condition, Box::from(then_branch), Some(Box::from(else_branch))))
+            } else {
+                let else_branch = self.parse_block()?;
+                Ok(Stmt::IfStmt(condition, Box::from(then_branch), Some(Box::from(else_branch))))
+            }
+        } else {
+            Ok(Stmt::IfStmt(condition, Box::from(then_branch), None))
+        }
+    }
+    fn parse_block(&mut self) -> Result<Stmt, ()> {
+        let mut statements = vec![];
+        loop {
+            match self.peek() {
+                Token::RBrace | Token::EOF => {
+                    break;
+                },
+                _ => {
+                    let stmt_res = self.parse_stmt();
+                    if let Ok(stmt) = stmt_res {
+                        statements.push(stmt);
+                    }
+                }
+            }
+        }
+        if self.peek() == Token::RBrace {
+            self.advance();
+            Ok(Stmt::BlockStmt(statements))
+        } else{
+            self.error("Expect '}' after block", self.previous.clone());
+            Err(())
         }
     }
     fn parse_let(&mut self) -> Result<Stmt, ()> {
