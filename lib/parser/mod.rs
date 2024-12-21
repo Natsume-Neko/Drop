@@ -51,10 +51,10 @@ impl<'a> Parser<'a> {
             None => Token::EOF,
         }
     }
-    fn error(&mut self, message: &str, token: Token) {
+    fn error(&mut self, message: &str) {
         self.errors.push(
             ParseError {
-                token,
+                token: self.previous.clone(),
                 message: message.to_string(),
             }
         )
@@ -106,15 +106,70 @@ impl<'a> Parser<'a> {
                 self.advance();
                 self.parse_while()
             }
+            Token::Function => {
+                self.advance();
+                self.parse_fn()
+            }
             _ => {
                 self.parse_expr_stmt()
             }
         }
     }
+    fn parse_return(&mut self) -> Result<Stmt, ()> {
+        if self.peek() == Token::SemiColon {
+            self.advance();
+            Ok(Stmt::ReturnStmt(None))
+        } else {
+            let expr = self.parse_expr()?;
+            if self.peek() != Token::SemiColon {
+                self.error("Expected ';' after statement");
+                Err(())
+            } else {
+                self.advance();
+                Ok(Stmt::ReturnStmt(Some(expr)))
+            }
+        }
+    }
+    fn parse_fn(&mut self) -> Result<Stmt, ()> {
+        if let Token::Ident(ident) = self.peek() {
+            self.advance();
+            if self.peek() != Token::LParen {
+                self.error("Expected '(' after identifier");
+                return Err(())
+            }
+            self.advance();
+            let mut parameters = vec![];
+            if self.peek() != Token::RParen {
+                parameters.push(self.parse_expr()?);
+                while self.peek() == Token::Comma {
+                    self.advance();
+                    parameters.push(self.parse_expr()?);
+                    if parameters.len() > 255 {
+                        self.error("Cannot have more than 255 parameters");
+                        return Err(())
+                    }
+                }
+            }
+            if self.peek() != Token::RParen {
+                self.error("Expected ')' after parameters");
+                return Err(())
+            }
+            self.advance();
+            if self.peek() != Token::LBrace {
+                self.error("Expected '{' after parameters");
+            }
+            self.advance();
+            let body = self.parse_block()?;
+            Ok(Stmt::FnStmt(Ident(ident), parameters, Box::from(body)))
+        } else {
+            self.error("Expected identifier after function definition");
+            Err(())
+        }
+    }
     fn parse_while(&mut self) -> Result<Stmt, ()> {
         let condition = self.parse_expr()?;
         if self.peek() != Token::LBrace {
-            self.error("Expect '{' after while condition", self.previous.clone());
+            self.error("Expect '{' after while condition");
             return Err(())
         }
         self.advance();
@@ -124,7 +179,7 @@ impl<'a> Parser<'a> {
     fn parse_if(&mut self) -> Result<Stmt, ()> {
         let condition = self.parse_expr()?;
         if self.peek() != Token::LBrace {
-            self.error("Expect '{' after if condition", self.previous.clone());
+            self.error("Expect '{' after if condition");
             return Err(())
         }
         self.advance();
@@ -162,7 +217,7 @@ impl<'a> Parser<'a> {
             self.advance();
             Ok(Stmt::BlockStmt(statements))
         } else{
-            self.error("Expect '}' after block", self.previous.clone());
+            self.error("Expect '}' after block");
             Err(())
         }
     }
@@ -178,7 +233,7 @@ impl<'a> Parser<'a> {
                             Ok(Stmt::LetStmt(Ident(ident), expr))
                         }
                         _ => {
-                            self.error("Expected ';' after statement", self.previous.clone());
+                            self.error("Expected ';' after statement");
                             Err(())
                         }
                     }
@@ -188,12 +243,12 @@ impl<'a> Parser<'a> {
                     Ok(Stmt::LetStmt(Ident(ident.clone()), Expr::IdentExpr(Ident(ident))))
                 }
                 _ => {
-                    self.error("Expected ';' after statement", self.previous.clone());
+                    self.error("Expected ';' after statement");
                     Err(())
                 }
             }
         } else {
-            self.error("Expect identifier after 'let'", self.previous.clone());
+            self.error("Expect identifier after 'let'");
             Err(())
         }
     }
@@ -205,7 +260,7 @@ impl<'a> Parser<'a> {
                 Ok(Stmt::ExprStmt(expr))
             },
             _ => {
-                self.error("Expected ';' after expression", self.previous.clone());
+                self.error("Expected ';' after expression");
                 Err(())
             }
         }
@@ -222,7 +277,7 @@ impl<'a> Parser<'a> {
                 if let Expr::IdentExpr(ident) = left {
                     Ok(Expr::AssignmentExpr(ident, Box::from(expr)))
                 } else {
-                    self.error("Illegal assignment", self.previous.clone());
+                    self.error("Illegal assignment");
                     Err(())
                 }
             }
@@ -333,9 +388,38 @@ impl<'a> Parser<'a> {
                 Ok(Expr::UnaryExpr(UnaryOp::Not, Box::from(expr)))
             },
             _ => {
-                self.parse_primary()
+                self.parse_call()
             },
         }
+    }
+    fn parse_call(&mut self) -> Result<Expr, ()> {
+        let mut expr = self.parse_primary()?;
+        loop {
+            if self.peek() == Token::LParen {
+                self.advance();
+                let mut arguments = vec![];
+                if self.peek() != Token::RParen {
+                    arguments.push(self.parse_expr()?);
+                    while self.peek() == Token::Comma {
+                        self.advance();
+                        arguments.push(self.parse_expr()?);
+                        if arguments.len() > 255 {
+                            self.error("Cannot have more than 255 arguments");
+                            return Err(())
+                        }
+                    }
+                }
+                if self.peek() != Token::RParen {
+                    self.error("Expected ')' after arguments");
+                    return Err(())
+                }
+                self.advance();
+                expr = Expr::CallExpr(Box::from(expr), arguments);
+            } else {
+                break
+            }
+        }
+        Ok(expr)
     }
     fn parse_primary(&mut self) -> Result<Expr, ()> {
         match self.peek() {
@@ -360,13 +444,14 @@ impl<'a> Parser<'a> {
                         Ok(expr)
                     },
                     _ => {
-                        self.error("Expected ')' after expression", self.previous.clone());
+                        self.error("Expected ')' after expression");
                         Err(())
                     },
                 }
             },
-            tok => {
-                self.error("Unexpected Token", tok.clone());
+            _ => {
+                self.advance();
+                self.error("Unexpected Token");
                 Err(())
             }
         }
