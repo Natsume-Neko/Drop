@@ -146,26 +146,25 @@ mod test {
 
     #[test]
     fn test_lexer_1() {
-        let s = String::from("if (a == 10) {\
+        let s = String::from("if a == 10 {\
                 return a;\
-             } else if (a != 20) {\
+             } else if a != 20 {\
                 return !a;\
-            } else if (a > 20) {\
-                return -30 / 40 * 50;\
-            } else if (a < 30) {\
+            } else if a > 20 {\
+                return (-30 + 40) * 50;\
+            } else if a < 30 {\
                 return true;\
             }\
-            let x = \"hello world!\"\
+            let x = \"hello world!\";\
+            print(x);\
             return false;\
             ");
         let result = Lexer::lex_tokens(s.as_str());
         let expected_result = vec![
             Token::If,
-            Token::LParen,
             Token::Ident("a".to_owned()),
             Token::Equal,
             Token::IntLiteral(10),
-            Token::RParen,
             Token::LBrace,
             Token::Return,
             Token::Ident("a".to_owned()),
@@ -173,11 +172,9 @@ mod test {
             Token::RBrace,
             Token::Else,
             Token::If,
-            Token::LParen,
             Token::Ident("a".to_owned()),
             Token::NotEqual,
             Token::IntLiteral(20),
-            Token::RParen,
             Token::LBrace,
             Token::Return,
             Token::Not,
@@ -186,28 +183,26 @@ mod test {
             Token::RBrace,
             Token::Else,
             Token::If,
-            Token::LParen,
             Token::Ident("a".to_owned()),
             Token::Greater,
             Token::IntLiteral(20),
-            Token::RParen,
             Token::LBrace,
             Token::Return,
+            Token::LParen,
             Token::Minus,
             Token::IntLiteral(30),
-            Token::Divide,
+            Token::Plus,
             Token::IntLiteral(40),
+            Token::RParen,
             Token::Multiply,
             Token::IntLiteral(50),
             Token::SemiColon,
             Token::RBrace,
             Token::Else,
             Token::If,
-            Token::LParen,
             Token::Ident("a".to_owned()),
             Token::Less,
             Token::IntLiteral(30),
-            Token::RParen,
             Token::LBrace,
             Token::Return,
             Token::BooleanLiteral(true),
@@ -217,6 +212,12 @@ mod test {
             Token::Ident("x".to_owned()),
             Token::Assign,
             Token::StringLiteral("hello world!".to_owned()),
+            Token::SemiColon,
+            Token::Ident("print".to_owned()),
+            Token::LParen,
+            Token::Ident("x".to_owned()),
+            Token::RParen,
+            Token::SemiColon,
             Token::Return,
             Token::BooleanLiteral(false),
             Token::SemiColon,

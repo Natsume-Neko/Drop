@@ -1,6 +1,7 @@
 pub type Program = Vec<Stmt>;
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Stmt {
-    LetStmt(Ident, Expr),
+    LetStmt(Ident, Option<Expr>),
     ReturnStmt(Option<Expr>),
     ExprStmt(Expr),
     BlockStmt(Vec<Stmt>),
@@ -8,7 +9,7 @@ pub enum Stmt {
     WhileStmt(Expr, Box<Stmt>),
     FnStmt(Ident, Vec<Expr>, Box<Stmt>),
 }
-
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Expr {
     IdentExpr(Ident),
     LiteralExpr(Literal),

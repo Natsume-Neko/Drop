@@ -7,6 +7,7 @@ pub mod ast;
 pub struct TokenCursor<'a> {
     tokens: Iter<'a, Token>,
 }
+#[derive(Debug)]
 pub struct ParseError {
     token: Token,
     message: String,
@@ -109,6 +110,10 @@ impl<'a> Parser<'a> {
             Token::Function => {
                 self.advance();
                 self.parse_fn()
+            }
+            Token::Return => {
+                self.advance();
+                self.parse_return()
             }
             _ => {
                 self.parse_expr_stmt()
@@ -226,11 +231,12 @@ impl<'a> Parser<'a> {
             self.advance();
             match self.peek() {
                 Token::Assign => {
+                    self.advance();
                     let expr = self.parse_expr()?;
                     match self.peek() {
                         Token::SemiColon => {
                             self.advance();
-                            Ok(Stmt::LetStmt(Ident(ident), expr))
+                            Ok(Stmt::LetStmt(Ident(ident), Some(expr)))
                         }
                         _ => {
                             self.error("Expected ';' after statement");
@@ -240,7 +246,7 @@ impl<'a> Parser<'a> {
                 }
                 Token::SemiColon => {
                     self.advance();
-                    Ok(Stmt::LetStmt(Ident(ident.clone()), Expr::IdentExpr(Ident(ident))))
+                    Ok(Stmt::LetStmt(Ident(ident.clone()), None))
                 }
                 _ => {
                     self.error("Expected ';' after statement");
@@ -435,6 +441,10 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(Expr::LiteralExpr(Literal::IntLiteral(literal)))
             },
+            Token::StringLiteral(literal) => {
+                self.advance();
+                Ok(Expr::LiteralExpr(Literal::StringLiteral(literal)))
+            }
             Token::LParen => {
                 self.advance();
                 let expr = self.parse_expr()?;
@@ -454,6 +464,87 @@ impl<'a> Parser<'a> {
                 self.error("Unexpected Token");
                 Err(())
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_parser_1() {
+        let tokens = vec![
+            Token::If,
+            Token::Ident("a".to_owned()),
+            Token::Equal,
+            Token::IntLiteral(10),
+            Token::LBrace,
+            Token::Return,
+            Token::Ident("a".to_owned()),
+            Token::SemiColon,
+            Token::RBrace,
+            Token::Else,
+            Token::If,
+            Token::Ident("a".to_owned()),
+            Token::NotEqual,
+            Token::IntLiteral(20),
+            Token::LBrace,
+            Token::Return,
+            Token::Not,
+            Token::Ident("a".to_owned()),
+            Token::SemiColon,
+            Token::RBrace,
+            Token::Else,
+            Token::If,
+            Token::Ident("a".to_owned()),
+            Token::Greater,
+            Token::IntLiteral(20),
+            Token::LBrace,
+            Token::Return,
+            Token::LParen,
+            Token::Minus,
+            Token::IntLiteral(30),
+            Token::Plus,
+            Token::IntLiteral(40),
+            Token::RParen,
+            Token::Multiply,
+            Token::IntLiteral(50),
+            Token::SemiColon,
+            Token::RBrace,
+            Token::Else,
+            Token::If,
+            Token::Ident("a".to_owned()),
+            Token::Less,
+            Token::IntLiteral(30),
+            Token::LBrace,
+            Token::Return,
+            Token::BooleanLiteral(true),
+            Token::SemiColon,
+            Token::RBrace,
+            Token::Let,
+            Token::Ident("x".to_owned()),
+            Token::Assign,
+            Token::StringLiteral("hello world!".to_owned()),
+            Token::SemiColon,
+            Token::Ident("print".to_owned()),
+            Token::LParen,
+            Token::Ident("x".to_owned()),
+            Token::RParen,
+            Token::SemiColon,
+            Token::Return,
+            Token::BooleanLiteral(false),
+            Token::SemiColon,
+            Token::EOF,
+        ];
+        let mut parser = Parser::new(&tokens);
+        let result = parser.parse();
+        for err in parser.errors.iter() {
+            println!("{:?}", err);
+        }
+        assert_eq!(parser.errors.len(), 0);
+        for stmt in result.iter() {
+            println!("{:?}", stmt);
         }
     }
 }
