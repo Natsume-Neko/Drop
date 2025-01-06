@@ -475,6 +475,11 @@ mod test {
     #[test]
     fn test_parser_1() {
         let tokens = vec![
+            Token::Function,
+            Token::Ident("main".to_owned()),
+            Token::LParen,
+            Token::RParen,
+            Token::LBrace,
             Token::If,
             Token::Ident("a".to_owned()),
             Token::Equal,
@@ -535,6 +540,7 @@ mod test {
             Token::Return,
             Token::BooleanLiteral(false),
             Token::SemiColon,
+            Token::RBrace,
             Token::EOF,
         ];
         let mut parser = Parser::new(&tokens);

@@ -146,21 +146,29 @@ mod test {
 
     #[test]
     fn test_lexer_1() {
-        let s = String::from("if a == 10 {\
-                return a;\
-             } else if a != 20 {\
-                return !a;\
-            } else if a > 20 {\
-                return (-30 + 40) * 50;\
-            } else if a < 30 {\
-                return true;\
+        let s = String::from("\
+            fn main() {
+                if a == 10 {\
+                    return a;\
+                } else if a != 20 {\
+                    return !a;\
+                } else if a > 20 {\
+                    return (-30 + 40) * 50;\
+                } else if a < 30 {\
+                    return true;\
+                }\
+                let x = \"hello world!\";\
+                print(x);\
+                return false;\
             }\
-            let x = \"hello world!\";\
-            print(x);\
-            return false;\
             ");
         let result = Lexer::lex_tokens(s.as_str());
         let expected_result = vec![
+            Token::Function,
+            Token::Ident("main".to_owned()),
+            Token::LParen,
+            Token::RParen,
+            Token::LBrace,
             Token::If,
             Token::Ident("a".to_owned()),
             Token::Equal,
@@ -221,6 +229,7 @@ mod test {
             Token::Return,
             Token::BooleanLiteral(false),
             Token::SemiColon,
+            Token::RBrace,
             Token::EOF,
         ];
         assert_eq!(result, expected_result);
