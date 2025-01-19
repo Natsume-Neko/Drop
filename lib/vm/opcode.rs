@@ -12,7 +12,6 @@ pub enum Opcode {
 
     Call(usize),
     Return,
-    MakeFunction(String, usize),
 
     Jump(usize),
     JumpIfTrue(usize),
@@ -45,7 +44,6 @@ pub enum Value {
 }
 
 pub struct FunctionObject {
-    name: String,
-    arity: usize,
     entry_point: usize,
+    arity: usize,
 }
