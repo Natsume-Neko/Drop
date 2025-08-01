@@ -1,3 +1,4 @@
+#![allow(unused)]
 mod symbol;
 
 use crate::parser::ast::{BinOp, Expr, Ident, Literal, Program, Stmt, UnaryOp};
@@ -22,7 +23,8 @@ impl Compiler {
     fn compile_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::ExprStmt(expr) => {
-                self.compile_expr(expr)
+                self.compile_expr(expr);
+                self.emit(Opcode::Pop)
             }
             Stmt::LetStmt(ident, expr) => {
                 self.compile_let(ident, expr)
@@ -50,7 +52,10 @@ impl Compiler {
     }
 
     fn compile_ret(&mut self, expr: &Option<Expr>) {
-        todo!()
+        if let Some(expression) = expr {
+            self.compile_expr(expression);
+        }
+        self.emit(Opcode::Return);
     }
 
     fn compile_if(&mut self, condition: &Expr, body: &Box<Stmt>, alt: &Option<Box<Stmt>>) {
@@ -60,12 +65,20 @@ impl Compiler {
     fn compile_block(&mut self, stmts: &Vec<Stmt>) {
         todo!()
     }
+
     fn compile_fn(&mut self, ident: &Ident, params: &Vec<Expr>, body: &Box<Stmt>) {
         todo!()
     }
 
     fn compile_let(&mut self, ident: &Ident, expr: &Option<Expr>) {
-        todo!()
+        if let Some(expression) = expr {
+            self.compile_expr(expression);
+            self.emit(Opcode::Register(ident.0.to_string()));
+            self.emit(Opcode::Store(ident.0.to_string()));
+            self.emit(Opcode::Pop);
+        } else {
+            self.emit(Opcode::Register(ident.0.to_string()));
+        }
     }
 
     fn compile_expr(&mut self, expr: &Expr) {
@@ -82,28 +95,71 @@ impl Compiler {
                 self.compile_assignment(ident, expr)
             }
             Expr::CallExpr(func, args) => {
-
+                self.compile_call(func, args)
             }
         }
     }
 
     fn compile_call(&mut self, func: &Box<Expr>, args: &Vec<Expr>) {
-        todo!()
+        for arg in args {
+            self.compile_expr(arg);
+        }
+        match func.as_ref() {
+            Expr::CallExpr(expr, new_args) => {
+                self.compile_call(expr, new_args);
+            }
+            Expr::IdentExpr(ident) => {
+                self.compile_ident(ident);
+            }
+            _ => {
+                panic!("The function call should lead by ident")
+            }
+        }
+        self.emit(Opcode::Call);
     }
     fn compile_assignment(&mut self, ident: &Ident, expr: &Box<Expr>) {
-        todo!()
+        self.compile_expr(expr);
+        self.emit(Opcode::Store(ident.0.to_string()));
     }
     fn compile_unary(&mut self, op: &UnaryOp, expr: &Box<Expr>) {
-        todo!()
+        self.compile_expr(expr);
+        match op {
+            UnaryOp::Not => self.emit(Opcode::Not),
+            UnaryOp::UnaryMinus => self.emit(Opcode::Negate),
+            UnaryOp::UnaryPlus => (),
+        }
     }
     fn compile_binary(&mut self, l_expr: &Expr, op: &BinOp, r_expr: &Expr) {
-        todo!()
+        self.compile_expr(l_expr);
+        self.compile_expr(r_expr);
+        match op {
+            BinOp::Plus => self.emit(Opcode::Add),
+            BinOp::Minus => self.emit(Opcode::Subtract),
+            BinOp::Multiply => self.emit(Opcode::Multiply),
+            BinOp::Divide => self.emit(Opcode::Divide),
+            BinOp::Equal => self.emit(Opcode::Equal),
+            BinOp::Greater => self.emit(Opcode::Greater),
+            BinOp::GreaterEqual => self.emit(Opcode::GreaterEqual),
+            BinOp::Less => self.emit(Opcode::Less),
+            BinOp::LessEqual => self.emit(Opcode::LessEqual),
+            BinOp::NotEqual => self.emit(Opcode::NotEqual),
+        }
     }
     fn compile_ident(&mut self, ident: &Ident) {
-        todo!()
+        self.emit(Opcode::Load(ident.0.to_string()));
     }
     fn compile_literal(&mut self, literal: &Literal) {
-        todo!()
+        match literal {
+            Literal::BoolLiteral(val) => {
+                self.emit(Opcode::Push(Value::Boolean(*val)));
+            }
+            Literal::IntLiteral(val) => {
+                self.emit(Opcode::Push(Value::Int(*val)));
+            }
+            Literal::StringLiteral(val) => {
+                self.emit(Opcode::Push(Value::String(val.to_string())));
+            }
+        }
     }
     fn emit(&mut self, code: Opcode) {
         self.codes.push(code)

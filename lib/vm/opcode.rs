@@ -1,16 +1,16 @@
 #![allow(unused)]
 
+#[derive(Clone)]
 pub enum Opcode {
     Push(Value),
     Pop,
     Dup,
 
-    LoadLocal(usize),
-    StoreLocal(usize),
-    LoadGlobal(usize),
-    StoreGlobal(usize),
+    Load(String),
+    Store(String),
+    Register(String),
 
-    Call(usize),
+    Call,
     Return,
 
     Jump(usize),
@@ -36,6 +36,7 @@ pub enum Opcode {
 
 }
 
+#[derive(Clone)]
 pub enum Value {
     Int(i64),
     String(String),
@@ -43,7 +44,8 @@ pub enum Value {
     Function(FunctionObject)
 }
 
+#[derive(Clone)]
 pub struct FunctionObject {
-    entry_point: usize,
     arity: usize,
+    codes: Vec<Opcode>
 }

@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::slice::Iter;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::ast::{BinOp, Expr, Ident, Literal, Program, Stmt, UnaryOp};
@@ -164,7 +165,7 @@ impl<'a> Parser<'a> {
                 self.error("Expected '{' after parameters");
             }
             self.advance();
-            let body = self.parse_block()?;
+            let body = self.parse_fn_block()?;
             Ok(Stmt::FnStmt(Ident(ident), parameters, Box::from(body)))
         } else {
             self.error("Expected identifier after function definition");
@@ -223,6 +224,32 @@ impl<'a> Parser<'a> {
             Ok(Stmt::BlockStmt(statements))
         } else{
             self.error("Expect '}' after block");
+            Err(())
+        }
+    }
+    fn parse_fn_block(&mut self) -> Result<Stmt, ()> {
+        let mut statements = vec![];
+        loop {
+            match self.peek() {
+                Token::RBrace | Token::EOF => {
+                    break;
+                },
+                _ => {
+                    let stmt_res = self.parse_stmt();
+                    if let Ok(stmt) = stmt_res {
+                        statements.push(stmt);
+                    }
+                }
+            }
+        }
+        if self.peek() == Token::RBrace {
+            self.advance();
+            if !matches!(statements.last(), Some(Stmt::ReturnStmt(_))) {
+                statements.push(Stmt::ReturnStmt(None));
+            }
+            Ok(Stmt::BlockStmt(statements))
+        } else{
+            self.error("Expect '}' after function body (block)");
             Err(())
         }
     }
