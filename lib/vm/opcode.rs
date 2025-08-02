@@ -9,6 +9,7 @@ pub enum Opcode {
     Load(String),
     Store(String),
     Register(String),
+    StoreFunction(String, Vec<String>, Vec<Opcode>),
 
     Call,
     Return,
@@ -45,6 +46,6 @@ pub enum Value {
 
 #[derive(Clone)]
 pub struct FunctionObject {
-    arity: usize,
+    params: Vec<String>,
     codes: Vec<Opcode>
 }

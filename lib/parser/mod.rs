@@ -146,10 +146,20 @@ impl<'a> Parser<'a> {
             self.advance();
             let mut parameters = vec![];
             if self.peek() != Token::RParen {
-                parameters.push(self.parse_expr()?);
+                let para = self.parse_expr()?;
+                if !matches!(para, Expr::IdentExpr(_)) {
+                    self.error("Function parameter must be identifiers");
+                    return Err(())
+                }
+                parameters.push(para);
                 while self.peek() == Token::Comma {
                     self.advance();
-                    parameters.push(self.parse_expr()?);
+                    let para = self.parse_expr()?;
+                    if !matches!(para, Expr::IdentExpr(_)) {
+                        self.error("Function parameter must be identifiers");
+                        return Err(())
+                    }
+                    parameters.push(para);
                     if parameters.len() > 255 {
                         self.error("Cannot have more than 255 parameters");
                         return Err(())

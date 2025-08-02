@@ -1,5 +1,4 @@
 #![allow(unused)]
-mod symbol;
 
 use crate::parser::ast::{BinOp, Expr, Ident, Literal, Program, Stmt, UnaryOp};
 use crate::vm::opcode::{Opcode, Value};
@@ -104,7 +103,23 @@ impl Compiler {
     }
 
     fn compile_fn(&mut self, ident: &Ident, params: &Vec<Expr>, body: &Box<Stmt>) {
-        todo!()
+        self.emit(Opcode::Register(ident.0.to_string()));
+        let mut param_names = vec![];
+        for param in params {
+            match param {
+                Expr::IdentExpr(name) => {
+                    param_names.push(name.0.to_string());
+                }
+                _ => unreachable!()
+            }
+        }
+        let body = match body.as_ref() {
+            Stmt::BlockStmt(block) => block,
+            _ => unreachable!()
+        };
+        let mut sub_compiler = Compiler::new();
+        sub_compiler.compile(body);
+        self.emit(Opcode::StoreFunction(ident.0.to_string(), param_names, sub_compiler.codes));
     }
 
     fn compile_let(&mut self, ident: &Ident, expr: &Option<Expr>) {
