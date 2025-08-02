@@ -48,7 +48,18 @@ impl Compiler {
     }
 
     fn compile_while(&mut self, condition: &Expr, body: &Box<Stmt>) {
-        todo!()
+        let start_pos = self.codes.len();
+        self.compile_expr(condition);
+        self.emit(Opcode::JumpIfFalse(0));
+        let backpatch = self.codes.len() - 1;
+        let body = match body.as_ref() {
+            Stmt::BlockStmt(block) => block,
+            _ => unreachable!(),
+        };
+        self.compile_block(body);
+        self.emit(Opcode::Jump(start_pos));
+        let pos = self.codes.len();
+        self.codes[backpatch] = Opcode::JumpIfFalse(pos);
     }
 
     fn compile_ret(&mut self, expr: &Option<Expr>) {
@@ -59,11 +70,37 @@ impl Compiler {
     }
 
     fn compile_if(&mut self, condition: &Expr, body: &Box<Stmt>, alt: &Option<Box<Stmt>>) {
-        todo!()
+        self.compile_expr(condition);
+        self.emit(Opcode::JumpIfFalse(0));
+        let backpatch1 = self.codes.len() - 1;
+        let body = match body.as_ref() {
+            Stmt::BlockStmt(block) => block,
+            _ => unreachable!()
+        };
+        let pos1 = self.codes.len();
+        self.codes[backpatch1] = Opcode::JumpIfFalse(pos1);
+        match alt {
+            Some(content) => {
+                self.emit(Opcode::Jump(0));
+                let backpatch2 = self.codes.len() - 1;
+                let alt_body = match content.as_ref() {
+                    Stmt::BlockStmt(block) => block,
+                    _ => unreachable!()
+                };
+                self.compile_block(alt_body);
+                let pos2 = self.codes.len();
+                self.codes[backpatch2] = Opcode::Jump(pos2);
+            }
+            None => (),
+        };
     }
 
     fn compile_block(&mut self, stmts: &Vec<Stmt>) {
-        todo!()
+        self.emit(Opcode::BeginScope);
+        let mut sub_compiler = Compiler::new();
+        sub_compiler.compile(stmts);
+        self.codes.append(&mut sub_compiler.codes);
+        self.emit(Opcode::EndScope);
     }
 
     fn compile_fn(&mut self, ident: &Ident, params: &Vec<Expr>, body: &Box<Stmt>) {

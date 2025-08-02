@@ -14,7 +14,6 @@ pub enum Opcode {
     Return,
 
     Jump(usize),
-    JumpIfTrue(usize),
     JumpIfFalse(usize),
 
     Add,

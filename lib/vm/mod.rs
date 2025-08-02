@@ -6,9 +6,9 @@ pub mod opcode;
 
 
 #[derive(Clone)]
-pub struct Scope {
+pub struct Scope<'a> {
     variables: HashMap<String, Value>,
-
+    upvalues: Option<&'a Scope<'a>>,
 }
 
 pub struct VM {
