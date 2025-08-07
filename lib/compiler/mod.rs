@@ -103,7 +103,6 @@ impl Compiler {
     }
 
     fn compile_fn(&mut self, ident: &Ident, params: &Vec<Expr>, body: &Box<Stmt>) {
-        self.emit(Opcode::Register(ident.0.to_string()));
         let mut param_names = vec![];
         for param in params {
             match param {

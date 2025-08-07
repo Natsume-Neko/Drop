@@ -1,10 +1,13 @@
 #![allow(unused)]
 
+use std::{cell::RefCell, rc::Rc};
+
+use crate::vm::Scope;
+
 #[derive(Clone)]
 pub enum Opcode {
     Push(Value),
     Pop,
-    Dup,
 
     Load(String),
     Store(String),
@@ -47,5 +50,16 @@ pub enum Value {
 #[derive(Clone)]
 pub struct FunctionObject {
     params: Vec<String>,
-    codes: Vec<Opcode>
+    codes: Vec<Opcode>,
+    scope: Rc<RefCell<Scope>>
+}
+
+impl FunctionObject {
+    pub fn new(params: Vec<String>, codes: Vec<Opcode>, scope: Rc<RefCell<Scope>>) -> Self {
+        Self {
+            params,
+            codes,
+            scope,
+        }
+    }
 }
