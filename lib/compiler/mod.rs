@@ -166,7 +166,7 @@ impl Compiler {
                 panic!("The function call should lead by ident")
             }
         }
-        self.emit(Opcode::Call);
+        self.emit(Opcode::Call(args.len()));
     }
     fn compile_assignment(&mut self, ident: &Ident, expr: &Box<Expr>) {
         self.compile_expr(expr);

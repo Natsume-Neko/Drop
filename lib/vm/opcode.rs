@@ -14,7 +14,7 @@ pub enum Opcode {
     Register(String),
     StoreFunction(String, Vec<String>, Vec<Opcode>),
 
-    Call,
+    Call(usize),
     Return,
 
     Jump(usize),
@@ -44,22 +44,21 @@ pub enum Value {
     Int(i64),
     String(String),
     Boolean(bool),
-    Function(FunctionObject)
+    Function(FunctionObject),
+    None,
 }
 
 #[derive(Clone)]
 pub struct FunctionObject {
-    params: Vec<String>,
-    codes: Vec<Opcode>,
-    scope: Rc<RefCell<Scope>>
+    pub params: Vec<String>,
+    pub codes: Vec<Opcode>,
 }
 
 impl FunctionObject {
-    pub fn new(params: Vec<String>, codes: Vec<Opcode>, scope: Rc<RefCell<Scope>>) -> Self {
+    pub fn new(params: Vec<String>, codes: Vec<Opcode>) -> Self {
         Self {
             params,
             codes,
-            scope,
         }
     }
 }
