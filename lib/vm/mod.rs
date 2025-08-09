@@ -54,6 +54,29 @@ impl Scope {
 }
 
 impl VM {
+    pub fn new() -> Self {
+        Self {
+            code: vec![],
+            stack: vec![],
+            scope: Rc::new(RefCell::new(Scope::new())),
+            frames: vec![],
+            ip: 0,
+            top: 0,
+        }
+    }
+
+    pub fn run(&mut self) -> Result<(), String> {
+        loop {
+            if self.ip == self.code.len() {
+                break;
+            }
+            if self.ip > self.code.len() {
+                return Err("Unknown Error: ip exceed the code length".to_string());
+            }
+            self.ip = self.execute(self.code.get(self.ip).unwrap().clone());
+        }
+        Ok(())
+    }
 
     fn execute(&mut self, code: Opcode) -> usize {
         match code {
@@ -91,7 +114,7 @@ impl VM {
                 if !scope.borrow().variables.contains_key(&name) {
                     panic!("No such variable: {}", name);
                 }
-                let value = self.stack.pop().unwrap();
+                let value = self.stack.last().unwrap().clone();
                 scope.borrow_mut().variables.insert(name, Some(value));
                 self.ip + 1
             }
@@ -149,11 +172,363 @@ impl VM {
                 let new_scope = old_scope.borrow().upvalues.clone();
                 let new_scope = match new_scope {
                     Some(parent) => parent,
-                    _ => unreachable!()
+                    _ => panic!("Cannot end the root scope")
                 };
                 self.scope = new_scope;
                 std::mem::replace(&mut self.code, frame.code);
                 frame.ip + 1
+            }
+            Opcode::BeginScope => {
+                let new_scope = Rc::new(RefCell::new(Scope::new_child(self.scope.clone())));
+                self.scope = new_scope;
+                self.ip + 1
+            }
+            Opcode::EndScope => {
+                let old_scope = self.scope.clone();
+                let new_scope = old_scope.borrow().upvalues.clone();
+                let new_scope = match new_scope {
+                    Some(parent) => parent,
+                    _ => panic!("Cannot end the root scope")
+                };
+                self.scope = new_scope;
+                self.ip + 1
+            }
+            Opcode::Jump(pos) => {
+                pos
+            }
+            Opcode::JumpIfFalse(pos) => {
+                match self.stack.pop() {
+                    Some(value) => match value {
+                        Value::Boolean(val) => {
+                            match val {
+                                true => self.ip + 1,
+                                false => pos,
+                            }
+                        }
+                        Value::Int(val) => {
+                            match val {
+                                0 => pos,
+                                _ => self.ip + 1,
+                            }
+                        }
+                        _ => {
+                            panic!("Expression in if condition should be boolean or int")
+                        }
+                    },
+                    _ => panic!("Unknown Error: stack empty")
+                }
+            }
+            Opcode::Add => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let sum = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Int((value1 as i64) + (value2 as i64)),
+                        Value::Int(value2) => Value::Int((value1 as i64) + value2),
+                        _ => panic!("You cannot add these different value type")
+                    },
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Int(value1 + (value2 as i64)),
+                        Value::Int(value2) => Value::Int(value1 + value2),
+                        _ => panic!("You cannot add these different value type")
+                    }
+                    Value::String(mut value1) => match value2 {
+                        Value::String(value2) => {
+                            value1.push_str(value2.as_str());
+                            Value::String(value1)
+                        }
+                        _ => panic!("You cannot add these different value type")
+                    }
+                    _ => panic!("You cannot add these different value type")
+                };
+                self.stack.push(sum);
+                self.ip + 1
+            }
+            Opcode::Subtract => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let diff = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Int((value1 as i64) - (value2 as i64)),
+                        Value::Int(value2) => Value::Int((value1 as i64) - value2),
+                        _ => panic!("You cannot substract these different value type")
+                    },
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Int(value1 - (value2 as i64)),
+                        Value::Int(value2) => Value::Int(value1 - value2),
+                        _ => panic!("You cannot substract these different value type")
+                    }
+                    _ => panic!("You cannot substract these different value type")
+                };
+                self.stack.push(diff);
+                self.ip + 1
+            }
+            Opcode::Multiply => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let mul = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Int((value1 as i64) * (value2 as i64)),
+                        Value::Int(value2) => Value::Int((value1 as i64) * value2),
+                        _ => panic!("You cannot multiply these different value type")
+                    },
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Int(value1 * (value2 as i64)),
+                        Value::Int(value2) => Value::Int(value1 * value2),
+                        _ => panic!("You cannot multiply these different value type")
+                    }
+                    _ => panic!("You cannot multiply these different value type")
+                };
+                self.stack.push(mul);
+                self.ip + 1
+            }
+            Opcode::Divide => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let div = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Int((value1 as i64) / (value2 as i64)),
+                        Value::Int(value2) => Value::Int((value1 as i64) / value2),
+                        _ => panic!("You cannot divide these different value type")
+                    },
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Int(value1 / (value2 as i64)),
+                        Value::Int(value2) => Value::Int(value1 / value2),
+                        _ => panic!("You cannot divide these different value type")
+                    }
+                    _ => panic!("You cannot divide these different value type")
+                };
+                self.stack.push(div);
+                self.ip + 1
+            }
+            Opcode::Less => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let result = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean((value1 as i64) < (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean((value1 as i64) < value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean(value1 < (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean(value1 < value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::String(value1) => match value2 {
+                        Value::String(value2) => Value::Boolean(value1.lt(&value2)),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    _ => panic!("You cannot compare these different value type")
+                };
+                self.stack.push(result);
+                self.ip + 1
+            }
+            Opcode::Greater => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let result = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean((value1 as i64) > (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean((value1 as i64) > value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean(value1 > (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean(value1 > value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::String(value1) => match value2 {
+                        Value::String(value2) => Value::Boolean(value1.gt(&value2)),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    _ => panic!("You cannot compare these different value type")
+                };
+                self.stack.push(result);
+                self.ip + 1
+            }
+            Opcode::LessEqual => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let result = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean((value1 as i64) <= (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean((value1 as i64) <= value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean(value1 <= (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean(value1 <= value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::String(value1) => match value2 {
+                        Value::String(value2) => Value::Boolean(value1.le(&value2)),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    _ => panic!("You cannot compare these different value type")
+                };
+                self.stack.push(result);
+                self.ip + 1
+            }
+            Opcode::GreaterEqual => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let result = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean((value1 as i64) >= (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean((value1 as i64) >= value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean(value1 >= (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean(value1 >= value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::String(value1) => match value2 {
+                        Value::String(value2) => Value::Boolean(value1.ge(&value2)),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    _ => panic!("You cannot compare these different value type")
+                };
+                self.stack.push(result);
+                self.ip + 1
+            }
+            Opcode::Equal => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let result = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean((value1 as i64) == (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean((value1 as i64) == value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean(value1 == (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean(value1 == value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::String(value1) => match value2 {
+                        Value::String(value2) => Value::Boolean(value1.eq(&value2)),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    _ => panic!("You cannot compare these different value type")
+                };
+                self.stack.push(result);
+                self.ip + 1
+            }
+            Opcode::NotEqual => {
+                let value1 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let value2 = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let result = match value1 {
+                    Value::Boolean(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean((value1 as i64) != (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean((value1 as i64) != value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::Int(value1) => match value2 {
+                        Value::Boolean(value2) => Value::Boolean(value1 != (value2 as i64)),
+                        Value::Int(value2) => Value::Boolean(value1 != value2),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    Value::String(value1) => match value2 {
+                        Value::String(value2) => Value::Boolean(value1.ne(&value2)),
+                        _ => panic!("You cannot compare these different value type")
+                    }
+                    _ => panic!("You cannot compare these different value type")
+                };
+                self.stack.push(result);
+                self.ip + 1
+            }
+            Opcode::Negate => {
+                let value = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let result = match value {
+                    Value::Boolean(value) => Value::Int(-(value as i64)),
+                    Value::Int(value) => Value::Int(-value),
+                    _ => panic!("You can only negate a number"),
+                };
+                self.stack.push(result);
+                self.ip + 1
+            }
+            Opcode::Not => {
+                let value = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty")
+                };
+                let result = match value {
+                    Value::Boolean(value) => Value::Boolean(!value),
+                    Value::Int(value) => {
+                        match value {
+                            0 => Value::Boolean(true),
+                            _ => Value::Boolean(false),
+                        }
+                    }
+                    _ => panic!("You can only Not a Boolean or Number"),
+                };
+                self.stack.push(result);
+                self.ip + 1
             }
             _ => unimplemented!(),
         }
