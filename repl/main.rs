@@ -1,9 +1,8 @@
 extern crate drop_lib;
+use drop_lib::lexer;
 use std::io;
 use std::io::Write;
-use drop_lib::lexer;
 const PROMPT: &str = ">> ";
-
 
 fn main() {
     println!("Hello to the Drop Language!");

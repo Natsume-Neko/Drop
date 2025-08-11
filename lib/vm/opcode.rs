@@ -1,10 +1,8 @@
-#![allow(unused)]
-
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 use crate::vm::Scope;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Opcode {
     Push(Value),
     Pop,
@@ -37,9 +35,10 @@ pub enum Opcode {
     BeginScope,
     EndScope,
 
+    Print,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Value {
     Int(i64),
     String(String),
@@ -48,7 +47,30 @@ pub enum Value {
     None,
 }
 
-#[derive(Clone)]
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Value::Int(value) => {
+                write!(f, "{}", value);
+            }
+            Value::Boolean(value) => {
+                write!(f, "{}", value);
+            }
+            Value::Function(_) => {
+                write!(f, "FunctionObject");
+            }
+            Value::String(value) => {
+                write!(f, "{}", value);
+            }
+            Value::None => {
+                write!(f, "None");
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct FunctionObject {
     pub params: Vec<String>,
     pub codes: Vec<Opcode>,
@@ -56,9 +78,6 @@ pub struct FunctionObject {
 
 impl FunctionObject {
     pub fn new(params: Vec<String>, codes: Vec<Opcode>) -> Self {
-        Self {
-            params,
-            codes,
-        }
+        Self { params, codes }
     }
 }

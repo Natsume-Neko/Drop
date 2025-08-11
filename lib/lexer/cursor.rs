@@ -1,13 +1,13 @@
 use std::str::Chars;
 
 pub struct Cursor<'a> {
-    chars: Chars<'a>
+    chars: Chars<'a>,
 }
 
 impl<'a> Cursor<'a> {
     pub fn new(input: &'a str) -> Self {
         Self {
-            chars: input.chars()
+            chars: input.chars(),
         }
     }
 

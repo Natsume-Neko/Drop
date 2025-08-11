@@ -1,5 +1,5 @@
-pub mod token;
 mod cursor;
+pub mod token;
 
 use crate::lexer::cursor::Cursor;
 use crate::lexer::token::*;
@@ -39,53 +39,45 @@ impl Lexer {
             Some('-') => Token::Minus,
             Some('/') => Token::Divide,
             Some('*') => Token::Multiply,
-            Some('=') => {
-                match input.peek_first() {
-                    Some('=') => {
-                        input.next();
-                        Token::Equal
-                    }
-                    _ => Token::Assign
+            Some('=') => match input.peek_first() {
+                Some('=') => {
+                    input.next();
+                    Token::Equal
                 }
-            }
-            Some('!') => {
-                match input.peek_first() {
-                    Some('=') => {
-                        input.next();
-                        Token::NotEqual
-                    }
-                    _ => Token::Not
+                _ => Token::Assign,
+            },
+            Some('!') => match input.peek_first() {
+                Some('=') => {
+                    input.next();
+                    Token::NotEqual
                 }
-            }
-            Some('<') => {
-                match input.peek_first() {
-                    Some('=') => {
-                        input.next();
-                        Token::LessEqual
-                    }
-                    _ => Token::Less
+                _ => Token::Not,
+            },
+            Some('<') => match input.peek_first() {
+                Some('=') => {
+                    input.next();
+                    Token::LessEqual
                 }
-            }
-            Some('>') => {
-                match input.peek_first() {
-                    Some('=') => {
-                        input.next();
-                        Token::GreaterEqual
-                    }
-                    _ => Token::Greater
+                _ => Token::Less,
+            },
+            Some('>') => match input.peek_first() {
+                Some('=') => {
+                    input.next();
+                    Token::GreaterEqual
                 }
-            }
+                _ => Token::Greater,
+            },
             Some('"') => {
                 let mut s = String::new();
                 loop {
                     match input.peek_first() {
                         Some('\n') | Some('\r') | None => {
                             input.next();
-                            return Token::Illegal
+                            return Token::Illegal;
                         }
                         Some('"') => {
                             input.next();
-                            return Token::StringLiteral(s)
+                            return Token::StringLiteral(s);
                         }
                         Some(ch) => {
                             input.next();
@@ -101,7 +93,7 @@ impl Lexer {
                     if ch.is_alphabetic() || ch.is_ascii_digit() || ch.eq(&'_') {
                         s.push(input.next().unwrap());
                     } else {
-                        break
+                        break;
                     }
                 }
                 match s.as_str() {
@@ -114,7 +106,7 @@ impl Lexer {
                     "for" => Token::For,
                     "true" => Token::BooleanLiteral(true),
                     "false" => Token::BooleanLiteral(false),
-                    _ => Token::Ident(s)
+                    _ => Token::Ident(s),
                 }
             }
             Some(c) if c.is_ascii_digit() => {
@@ -124,20 +116,19 @@ impl Lexer {
                     if ch.is_ascii_digit() {
                         s.push(input.next().unwrap());
                     } else {
-                        break
+                        break;
                     }
                 }
                 match s.parse::<i64>() {
                     Ok(value) => Token::IntLiteral(value),
-                    _ => Token::Illegal
+                    _ => Token::Illegal,
                 }
             }
 
             None => Token::EOF,
-            _ => Token::Illegal
+            _ => Token::Illegal,
         }
     }
-
 }
 
 #[cfg(test)]
@@ -146,7 +137,8 @@ mod test {
 
     #[test]
     fn test_lexer_1() {
-        let s = String::from("\
+        let s = String::from(
+            "\
             fn main() {
                 if a == 10 {\
                     return a;\
@@ -161,7 +153,8 @@ mod test {
                 print(x);\
                 return false;\
             }\
-            ");
+            ",
+        );
         let result = Lexer::lex_tokens(s.as_str());
         let expected_result = vec![
             Token::Function,

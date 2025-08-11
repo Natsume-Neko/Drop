@@ -1,6 +1,6 @@
 #![allow(unused)]
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use crate::vm::opcode::{FunctionObject, Opcode, Value};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub mod opcode;
 
@@ -28,11 +28,7 @@ pub struct CallFrame {
 
 impl CallFrame {
     pub fn new(code: Vec<Opcode>, top: usize, ip: usize) -> Self {
-        Self {
-            code,
-            top,
-            ip,
-        }
+        Self { code, top, ip }
     }
 }
 
@@ -47,18 +43,29 @@ impl Scope {
     fn new_child(upvalues: Rc<RefCell<Scope>>) -> Self {
         Self {
             variables: HashMap::new(),
-            upvalues: Some(upvalues)
+            upvalues: Some(upvalues),
         }
     }
-
 }
 
 impl VM {
-    pub fn new() -> Self {
+    pub fn new(code: Vec<Opcode>) -> Self {
+        let print_func = FunctionObject::new(
+            vec!["value".to_string()],
+            vec![
+                Opcode::Load("value".to_string()),
+                Opcode::Print,
+                Opcode::Return,
+            ],
+        );
+        let mut scope = Scope::new();
+        scope
+            .variables
+            .insert("print".to_string(), Some(Value::Function(print_func)));
         Self {
-            code: vec![],
+            code,
             stack: vec![],
-            scope: Rc::new(RefCell::new(Scope::new())),
+            scope: Rc::new(RefCell::new(scope)),
             frames: vec![],
             ip: 0,
             top: 0,
@@ -125,7 +132,10 @@ impl VM {
             Opcode::StoreFunction(name, params, codes) => {
                 let scope = Rc::new(RefCell::new(Scope::new_child(self.scope.clone())));
                 let func = FunctionObject::new(params, codes);
-                self.scope.borrow_mut().variables.insert(name, Some(Value::Function(func)));
+                self.scope
+                    .borrow_mut()
+                    .variables
+                    .insert(name, Some(Value::Function(func)));
                 self.ip + 1
             }
             Opcode::Call(num_args) => {
@@ -133,8 +143,8 @@ impl VM {
                     Some(val) => match val {
                         Value::Function(func) => func,
                         _ => panic!("Can only call a function variable"),
-                    }
-                    None => unreachable!()
+                    },
+                    None => unreachable!(),
                 };
                 if num_args != func.params.len() {
                     panic!("The number of args is not true")
@@ -145,7 +155,10 @@ impl VM {
                         Some(val) => val,
                         None => unreachable!(),
                     };
-                    new_scope.borrow_mut().variables.insert(param.clone(), Some(arg));
+                    new_scope
+                        .borrow_mut()
+                        .variables
+                        .insert(param.clone(), Some(arg));
                 }
                 let mut old_code = func.codes;
                 std::mem::swap(&mut self.code, &mut old_code);
@@ -172,7 +185,7 @@ impl VM {
                 let new_scope = old_scope.borrow().upvalues.clone();
                 let new_scope = match new_scope {
                     Some(parent) => parent,
-                    _ => panic!("Cannot end the root scope")
+                    _ => panic!("Cannot end the root scope"),
                 };
                 self.scope = new_scope;
                 std::mem::replace(&mut self.code, frame.code);
@@ -188,64 +201,56 @@ impl VM {
                 let new_scope = old_scope.borrow().upvalues.clone();
                 let new_scope = match new_scope {
                     Some(parent) => parent,
-                    _ => panic!("Cannot end the root scope")
+                    _ => panic!("Cannot end the root scope"),
                 };
                 self.scope = new_scope;
                 self.ip + 1
             }
-            Opcode::Jump(pos) => {
-                pos
-            }
-            Opcode::JumpIfFalse(pos) => {
-                match self.stack.pop() {
-                    Some(value) => match value {
-                        Value::Boolean(val) => {
-                            match val {
-                                true => self.ip + 1,
-                                false => pos,
-                            }
-                        }
-                        Value::Int(val) => {
-                            match val {
-                                0 => pos,
-                                _ => self.ip + 1,
-                            }
-                        }
-                        _ => {
-                            panic!("Expression in if condition should be boolean or int")
-                        }
+            Opcode::Jump(pos) => pos,
+            Opcode::JumpIfFalse(pos) => match self.stack.pop() {
+                Some(value) => match value {
+                    Value::Boolean(val) => match val {
+                        true => self.ip + 1,
+                        false => pos,
                     },
-                    _ => panic!("Unknown Error: stack empty")
-                }
-            }
+                    Value::Int(val) => match val {
+                        0 => pos,
+                        _ => self.ip + 1,
+                    },
+                    _ => {
+                        panic!("Expression in if condition should be boolean or int")
+                    }
+                },
+                _ => panic!("Unknown Error: stack empty"),
+            },
             Opcode::Add => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let sum = match value1 {
                     Value::Boolean(value1) => match value2 {
                         Value::Boolean(value2) => Value::Int((value1 as i64) + (value2 as i64)),
                         Value::Int(value2) => Value::Int((value1 as i64) + value2),
-                        _ => panic!("You cannot add these different value type")
+                        _ => panic!("You cannot add these different value type"),
                     },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Int(value1 + (value2 as i64)),
                         Value::Int(value2) => Value::Int(value1 + value2),
-                        _ => panic!("You cannot add these different value type")
-                    }
+                        _ => panic!("You cannot add these different value type"),
+                    },
                     Value::String(mut value1) => match value2 {
                         Value::String(value2) => {
                             value1.push_str(value2.as_str());
                             Value::String(value1)
                         }
-                        _ => panic!("You cannot add these different value type")
-                    }
-                    _ => panic!("You cannot add these different value type")
+                        _ => panic!("You cannot add these different value type"),
+                    },
+                    _ => panic!("You cannot add these different value type"),
                 };
                 self.stack.push(sum);
                 self.ip + 1
@@ -253,24 +258,24 @@ impl VM {
             Opcode::Subtract => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let diff = match value1 {
                     Value::Boolean(value1) => match value2 {
                         Value::Boolean(value2) => Value::Int((value1 as i64) - (value2 as i64)),
                         Value::Int(value2) => Value::Int((value1 as i64) - value2),
-                        _ => panic!("You cannot substract these different value type")
+                        _ => panic!("You cannot substract these different value type"),
                     },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Int(value1 - (value2 as i64)),
                         Value::Int(value2) => Value::Int(value1 - value2),
-                        _ => panic!("You cannot substract these different value type")
-                    }
-                    _ => panic!("You cannot substract these different value type")
+                        _ => panic!("You cannot substract these different value type"),
+                    },
+                    _ => panic!("You cannot substract these different value type"),
                 };
                 self.stack.push(diff);
                 self.ip + 1
@@ -278,24 +283,24 @@ impl VM {
             Opcode::Multiply => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let mul = match value1 {
                     Value::Boolean(value1) => match value2 {
                         Value::Boolean(value2) => Value::Int((value1 as i64) * (value2 as i64)),
                         Value::Int(value2) => Value::Int((value1 as i64) * value2),
-                        _ => panic!("You cannot multiply these different value type")
+                        _ => panic!("You cannot multiply these different value type"),
                     },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Int(value1 * (value2 as i64)),
                         Value::Int(value2) => Value::Int(value1 * value2),
-                        _ => panic!("You cannot multiply these different value type")
-                    }
-                    _ => panic!("You cannot multiply these different value type")
+                        _ => panic!("You cannot multiply these different value type"),
+                    },
+                    _ => panic!("You cannot multiply these different value type"),
                 };
                 self.stack.push(mul);
                 self.ip + 1
@@ -303,24 +308,24 @@ impl VM {
             Opcode::Divide => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let div = match value1 {
                     Value::Boolean(value1) => match value2 {
                         Value::Boolean(value2) => Value::Int((value1 as i64) / (value2 as i64)),
                         Value::Int(value2) => Value::Int((value1 as i64) / value2),
-                        _ => panic!("You cannot divide these different value type")
+                        _ => panic!("You cannot divide these different value type"),
                     },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Int(value1 / (value2 as i64)),
                         Value::Int(value2) => Value::Int(value1 / value2),
-                        _ => panic!("You cannot divide these different value type")
-                    }
-                    _ => panic!("You cannot divide these different value type")
+                        _ => panic!("You cannot divide these different value type"),
+                    },
+                    _ => panic!("You cannot divide these different value type"),
                 };
                 self.stack.push(div);
                 self.ip + 1
@@ -328,28 +333,28 @@ impl VM {
             Opcode::Less => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let result = match value1 {
                     Value::Boolean(value1) => match value2 {
                         Value::Boolean(value2) => Value::Boolean((value1 as i64) < (value2 as i64)),
                         Value::Int(value2) => Value::Boolean((value1 as i64) < value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Boolean(value1 < (value2 as i64)),
                         Value::Int(value2) => Value::Boolean(value1 < value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::String(value1) => match value2 {
                         Value::String(value2) => Value::Boolean(value1.lt(&value2)),
-                        _ => panic!("You cannot compare these different value type")
-                    }
-                    _ => panic!("You cannot compare these different value type")
+                        _ => panic!("You cannot compare these different value type"),
+                    },
+                    _ => panic!("You cannot compare these different value type"),
                 };
                 self.stack.push(result);
                 self.ip + 1
@@ -357,28 +362,28 @@ impl VM {
             Opcode::Greater => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let result = match value1 {
                     Value::Boolean(value1) => match value2 {
                         Value::Boolean(value2) => Value::Boolean((value1 as i64) > (value2 as i64)),
                         Value::Int(value2) => Value::Boolean((value1 as i64) > value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Boolean(value1 > (value2 as i64)),
                         Value::Int(value2) => Value::Boolean(value1 > value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::String(value1) => match value2 {
                         Value::String(value2) => Value::Boolean(value1.gt(&value2)),
-                        _ => panic!("You cannot compare these different value type")
-                    }
-                    _ => panic!("You cannot compare these different value type")
+                        _ => panic!("You cannot compare these different value type"),
+                    },
+                    _ => panic!("You cannot compare these different value type"),
                 };
                 self.stack.push(result);
                 self.ip + 1
@@ -386,28 +391,30 @@ impl VM {
             Opcode::LessEqual => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let result = match value1 {
                     Value::Boolean(value1) => match value2 {
-                        Value::Boolean(value2) => Value::Boolean((value1 as i64) <= (value2 as i64)),
+                        Value::Boolean(value2) => {
+                            Value::Boolean((value1 as i64) <= (value2 as i64))
+                        }
                         Value::Int(value2) => Value::Boolean((value1 as i64) <= value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Boolean(value1 <= (value2 as i64)),
                         Value::Int(value2) => Value::Boolean(value1 <= value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::String(value1) => match value2 {
                         Value::String(value2) => Value::Boolean(value1.le(&value2)),
-                        _ => panic!("You cannot compare these different value type")
-                    }
-                    _ => panic!("You cannot compare these different value type")
+                        _ => panic!("You cannot compare these different value type"),
+                    },
+                    _ => panic!("You cannot compare these different value type"),
                 };
                 self.stack.push(result);
                 self.ip + 1
@@ -415,28 +422,30 @@ impl VM {
             Opcode::GreaterEqual => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let result = match value1 {
                     Value::Boolean(value1) => match value2 {
-                        Value::Boolean(value2) => Value::Boolean((value1 as i64) >= (value2 as i64)),
+                        Value::Boolean(value2) => {
+                            Value::Boolean((value1 as i64) >= (value2 as i64))
+                        }
                         Value::Int(value2) => Value::Boolean((value1 as i64) >= value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Boolean(value1 >= (value2 as i64)),
                         Value::Int(value2) => Value::Boolean(value1 >= value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::String(value1) => match value2 {
                         Value::String(value2) => Value::Boolean(value1.ge(&value2)),
-                        _ => panic!("You cannot compare these different value type")
-                    }
-                    _ => panic!("You cannot compare these different value type")
+                        _ => panic!("You cannot compare these different value type"),
+                    },
+                    _ => panic!("You cannot compare these different value type"),
                 };
                 self.stack.push(result);
                 self.ip + 1
@@ -444,28 +453,30 @@ impl VM {
             Opcode::Equal => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let result = match value1 {
                     Value::Boolean(value1) => match value2 {
-                        Value::Boolean(value2) => Value::Boolean((value1 as i64) == (value2 as i64)),
+                        Value::Boolean(value2) => {
+                            Value::Boolean((value1 as i64) == (value2 as i64))
+                        }
                         Value::Int(value2) => Value::Boolean((value1 as i64) == value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Boolean(value1 == (value2 as i64)),
                         Value::Int(value2) => Value::Boolean(value1 == value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::String(value1) => match value2 {
                         Value::String(value2) => Value::Boolean(value1.eq(&value2)),
-                        _ => panic!("You cannot compare these different value type")
-                    }
-                    _ => panic!("You cannot compare these different value type")
+                        _ => panic!("You cannot compare these different value type"),
+                    },
+                    _ => panic!("You cannot compare these different value type"),
                 };
                 self.stack.push(result);
                 self.ip + 1
@@ -473,28 +484,30 @@ impl VM {
             Opcode::NotEqual => {
                 let value1 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let value2 = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let result = match value1 {
                     Value::Boolean(value1) => match value2 {
-                        Value::Boolean(value2) => Value::Boolean((value1 as i64) != (value2 as i64)),
+                        Value::Boolean(value2) => {
+                            Value::Boolean((value1 as i64) != (value2 as i64))
+                        }
                         Value::Int(value2) => Value::Boolean((value1 as i64) != value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::Int(value1) => match value2 {
                         Value::Boolean(value2) => Value::Boolean(value1 != (value2 as i64)),
                         Value::Int(value2) => Value::Boolean(value1 != value2),
-                        _ => panic!("You cannot compare these different value type")
-                    }
+                        _ => panic!("You cannot compare these different value type"),
+                    },
                     Value::String(value1) => match value2 {
                         Value::String(value2) => Value::Boolean(value1.ne(&value2)),
-                        _ => panic!("You cannot compare these different value type")
-                    }
-                    _ => panic!("You cannot compare these different value type")
+                        _ => panic!("You cannot compare these different value type"),
+                    },
+                    _ => panic!("You cannot compare these different value type"),
                 };
                 self.stack.push(result);
                 self.ip + 1
@@ -502,7 +515,7 @@ impl VM {
             Opcode::Negate => {
                 let value = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let result = match value {
                     Value::Boolean(value) => Value::Int(-(value as i64)),
@@ -515,19 +528,25 @@ impl VM {
             Opcode::Not => {
                 let value = match self.stack.pop() {
                     Some(value) => value,
-                    _ => panic!("Unknown Error: stack empty")
+                    _ => panic!("Unknown Error: stack empty"),
                 };
                 let result = match value {
                     Value::Boolean(value) => Value::Boolean(!value),
-                    Value::Int(value) => {
-                        match value {
-                            0 => Value::Boolean(true),
-                            _ => Value::Boolean(false),
-                        }
-                    }
+                    Value::Int(value) => match value {
+                        0 => Value::Boolean(true),
+                        _ => Value::Boolean(false),
+                    },
                     _ => panic!("You can only Not a Boolean or Number"),
                 };
                 self.stack.push(result);
+                self.ip + 1
+            }
+            Opcode::Print => {
+                let value = match self.stack.pop() {
+                    Some(value) => value,
+                    _ => panic!("Unknown Error: stack empty"),
+                };
+                println!("{}", value);
                 self.ip + 1
             }
             _ => unimplemented!(),

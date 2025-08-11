@@ -1,17 +1,19 @@
-#![allow(unused)]
-
 use crate::parser::ast::{BinOp, Expr, Ident, Literal, Program, Stmt, UnaryOp};
 use crate::vm::opcode::{Opcode, Value};
 
 pub struct Compiler {
-    codes: Vec<Opcode>
+    pub codes: Vec<Opcode>,
+}
+
+impl Default for Compiler {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Compiler {
     pub fn new() -> Self {
-        Self {
-            codes: vec![]
-        }
+        Self { codes: vec![] }
     }
     pub fn compile(&mut self, program: &Program) {
         for stmt in program.iter() {
@@ -25,24 +27,12 @@ impl Compiler {
                 self.compile_expr(expr);
                 self.emit(Opcode::Pop)
             }
-            Stmt::LetStmt(ident, expr) => {
-                self.compile_let(ident, expr)
-            }
-            Stmt::FnStmt(ident, params, body) => {
-                self.compile_fn(ident, params, body)
-            }
-            Stmt::BlockStmt(stmts) => {
-                self.compile_block(stmts)
-            }
-            Stmt::IfStmt(condition, body, alt) => {
-                self.compile_if(condition, body, alt)
-            }
-            Stmt::ReturnStmt(expr) => {
-                self.compile_ret(expr)
-            }
-            Stmt::WhileStmt(condition, body) => {
-                self.compile_while(condition, body)
-            }
+            Stmt::LetStmt(ident, expr) => self.compile_let(ident, expr),
+            Stmt::FnStmt(ident, params, body) => self.compile_fn(ident, params, body),
+            Stmt::BlockStmt(stmts) => self.compile_block(stmts),
+            Stmt::IfStmt(condition, body, alt) => self.compile_if(condition, body, alt),
+            Stmt::ReturnStmt(expr) => self.compile_ret(expr),
+            Stmt::WhileStmt(condition, body) => self.compile_while(condition, body),
         }
     }
 
@@ -74,8 +64,9 @@ impl Compiler {
         let backpatch1 = self.codes.len() - 1;
         let body = match body.as_ref() {
             Stmt::BlockStmt(block) => block,
-            _ => unreachable!()
+            _ => unreachable!(),
         };
+        self.compile_block(body);
         let pos1 = self.codes.len();
         self.codes[backpatch1] = Opcode::JumpIfFalse(pos1);
         match alt {
@@ -84,7 +75,7 @@ impl Compiler {
                 let backpatch2 = self.codes.len() - 1;
                 let alt_body = match content.as_ref() {
                     Stmt::BlockStmt(block) => block,
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 self.compile_block(alt_body);
                 let pos2 = self.codes.len();
@@ -109,16 +100,20 @@ impl Compiler {
                 Expr::IdentExpr(name) => {
                     param_names.push(name.0.to_string());
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
         let body = match body.as_ref() {
             Stmt::BlockStmt(block) => block,
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         let mut sub_compiler = Compiler::new();
         sub_compiler.compile(body);
-        self.emit(Opcode::StoreFunction(ident.0.to_string(), param_names, sub_compiler.codes));
+        self.emit(Opcode::StoreFunction(
+            ident.0.to_string(),
+            param_names,
+            sub_compiler.codes,
+        ));
     }
 
     fn compile_let(&mut self, ident: &Ident, expr: &Option<Expr>) {
@@ -136,18 +131,10 @@ impl Compiler {
         match expr {
             Expr::LiteralExpr(literal) => self.compile_literal(literal),
             Expr::IdentExpr(ident) => self.compile_ident(ident),
-            Expr::BinExpr(l_expr, op, r_expr) => {
-                self.compile_binary(l_expr, op, r_expr)
-            }
-            Expr::UnaryExpr(op, expr) => {
-                self.compile_unary(op, expr)
-            }
-            Expr::AssignmentExpr(ident, expr) => {
-                self.compile_assignment(ident, expr)
-            }
-            Expr::CallExpr(func, args) => {
-                self.compile_call(func, args)
-            }
+            Expr::BinExpr(l_expr, op, r_expr) => self.compile_binary(l_expr, op, r_expr),
+            Expr::UnaryExpr(op, expr) => self.compile_unary(op, expr),
+            Expr::AssignmentExpr(ident, expr) => self.compile_assignment(ident, expr),
+            Expr::CallExpr(func, args) => self.compile_call(func, args),
         }
     }
 

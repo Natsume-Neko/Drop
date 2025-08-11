@@ -1,7 +1,7 @@
 #![allow(unused)]
-use std::slice::Iter;
 use crate::lexer::token::{Token, Tokens};
 use crate::parser::ast::{BinOp, Expr, Ident, Literal, Program, Stmt, UnaryOp};
+use std::slice::Iter;
 
 pub mod ast;
 
@@ -16,7 +16,7 @@ pub struct ParseError {
 impl<'a> TokenCursor<'a> {
     pub fn new(input: &'a Tokens) -> Self {
         Self {
-            tokens: input.into_iter()
+            tokens: input.into_iter(),
         }
     }
     pub fn peek_first(&self) -> Option<&Token> {
@@ -29,7 +29,7 @@ impl<'a> TokenCursor<'a> {
 pub struct Parser<'a> {
     previous: Token,
     token_cursor: TokenCursor<'a>,
-    errors: Vec<ParseError>
+    pub errors: Vec<ParseError>,
 }
 
 impl<'a> Parser<'a> {
@@ -42,8 +42,8 @@ impl<'a> Parser<'a> {
     }
     fn advance(&mut self) {
         match self.token_cursor.next() {
-            Some(tok) => { self.previous = tok.clone() },
-            None => { self.previous = Token::EOF },
+            Some(tok) => self.previous = tok.clone(),
+            None => self.previous = Token::EOF,
         }
     }
 
@@ -54,12 +54,10 @@ impl<'a> Parser<'a> {
         }
     }
     fn error(&mut self, message: &str) {
-        self.errors.push(
-            ParseError {
-                token: self.previous.clone(),
-                message: message.to_string(),
-            }
-        )
+        self.errors.push(ParseError {
+            token: self.previous.clone(),
+            message: message.to_string(),
+        })
     }
     fn synchronize(&mut self) {
         loop {
@@ -71,7 +69,7 @@ impl<'a> Parser<'a> {
                     self.advance();
                     return;
                 }
-                _ => self.advance()
+                _ => self.advance(),
             }
         }
     }
@@ -83,9 +81,7 @@ impl<'a> Parser<'a> {
                 Ok(stmt) => {
                     statements.push(stmt);
                 }
-                Err(_) => {
-                    self.synchronize()
-                }
+                Err(_) => self.synchronize(),
             }
         }
         statements
@@ -116,9 +112,7 @@ impl<'a> Parser<'a> {
                 self.advance();
                 self.parse_return()
             }
-            _ => {
-                self.parse_expr_stmt()
-            }
+            _ => self.parse_expr_stmt(),
         }
     }
     fn parse_return(&mut self) -> Result<Stmt, ()> {
@@ -141,7 +135,7 @@ impl<'a> Parser<'a> {
             self.advance();
             if self.peek() != Token::LParen {
                 self.error("Expected '(' after identifier");
-                return Err(())
+                return Err(());
             }
             self.advance();
             let mut parameters = vec![];
@@ -149,7 +143,7 @@ impl<'a> Parser<'a> {
                 let para = self.parse_expr()?;
                 if !matches!(para, Expr::IdentExpr(_)) {
                     self.error("Function parameter must be identifiers");
-                    return Err(())
+                    return Err(());
                 }
                 parameters.push(para);
                 while self.peek() == Token::Comma {
@@ -157,18 +151,18 @@ impl<'a> Parser<'a> {
                     let para = self.parse_expr()?;
                     if !matches!(para, Expr::IdentExpr(_)) {
                         self.error("Function parameter must be identifiers");
-                        return Err(())
+                        return Err(());
                     }
                     parameters.push(para);
                     if parameters.len() > 255 {
                         self.error("Cannot have more than 255 parameters");
-                        return Err(())
+                        return Err(());
                     }
                 }
             }
             if self.peek() != Token::RParen {
                 self.error("Expected ')' after parameters");
-                return Err(())
+                return Err(());
             }
             self.advance();
             if self.peek() != Token::LBrace {
@@ -186,7 +180,7 @@ impl<'a> Parser<'a> {
         let condition = self.parse_expr()?;
         if self.peek() != Token::LBrace {
             self.error("Expect '{' after while condition");
-            return Err(())
+            return Err(());
         }
         self.advance();
         let loop_block = self.parse_block()?;
@@ -196,7 +190,7 @@ impl<'a> Parser<'a> {
         let condition = self.parse_expr()?;
         if self.peek() != Token::LBrace {
             self.error("Expect '{' after if condition");
-            return Err(())
+            return Err(());
         }
         self.advance();
         let then_branch = self.parse_block()?;
@@ -205,10 +199,18 @@ impl<'a> Parser<'a> {
             if self.peek() == Token::If {
                 self.advance();
                 let else_branch = self.parse_if()?;
-                Ok(Stmt::IfStmt(condition, Box::from(then_branch), Some(Box::from(else_branch))))
+                Ok(Stmt::IfStmt(
+                    condition,
+                    Box::from(then_branch),
+                    Some(Box::from(else_branch)),
+                ))
             } else {
                 let else_branch = self.parse_block()?;
-                Ok(Stmt::IfStmt(condition, Box::from(then_branch), Some(Box::from(else_branch))))
+                Ok(Stmt::IfStmt(
+                    condition,
+                    Box::from(then_branch),
+                    Some(Box::from(else_branch)),
+                ))
             }
         } else {
             Ok(Stmt::IfStmt(condition, Box::from(then_branch), None))
@@ -220,7 +222,7 @@ impl<'a> Parser<'a> {
             match self.peek() {
                 Token::RBrace | Token::EOF => {
                     break;
-                },
+                }
                 _ => {
                     let stmt_res = self.parse_stmt();
                     if let Ok(stmt) = stmt_res {
@@ -232,7 +234,7 @@ impl<'a> Parser<'a> {
         if self.peek() == Token::RBrace {
             self.advance();
             Ok(Stmt::BlockStmt(statements))
-        } else{
+        } else {
             self.error("Expect '}' after block");
             Err(())
         }
@@ -243,7 +245,7 @@ impl<'a> Parser<'a> {
             match self.peek() {
                 Token::RBrace | Token::EOF => {
                     break;
-                },
+                }
                 _ => {
                     let stmt_res = self.parse_stmt();
                     if let Ok(stmt) = stmt_res {
@@ -258,7 +260,7 @@ impl<'a> Parser<'a> {
                 statements.push(Stmt::ReturnStmt(None));
             }
             Ok(Stmt::BlockStmt(statements))
-        } else{
+        } else {
             self.error("Expect '}' after function body (block)");
             Err(())
         }
@@ -301,7 +303,7 @@ impl<'a> Parser<'a> {
             Token::SemiColon => {
                 self.advance();
                 Ok(Stmt::ExprStmt(expr))
-            },
+            }
             _ => {
                 self.error("Expected ';' after expression");
                 Err(())
@@ -324,7 +326,7 @@ impl<'a> Parser<'a> {
                     Err(())
                 }
             }
-            _ => Ok(left)
+            _ => Ok(left),
         }
     }
     fn parse_equality(&mut self) -> Result<Expr, ()> {
@@ -341,7 +343,7 @@ impl<'a> Parser<'a> {
                     let right = self.parse_comparison()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::NotEqual, Box::from(right));
                 }
-                _ => break
+                _ => break,
             }
         }
         Ok(expr)
@@ -370,7 +372,7 @@ impl<'a> Parser<'a> {
                     let right = self.parse_term()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::GreaterEqual, Box::from(right));
                 }
-                _ => break
+                _ => break,
             }
         }
         Ok(expr)
@@ -389,7 +391,7 @@ impl<'a> Parser<'a> {
                     let right = self.parse_factor()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::Minus, Box::from(right));
                 }
-                _ => break
+                _ => break,
             }
         }
         Ok(expr)
@@ -408,7 +410,7 @@ impl<'a> Parser<'a> {
                     let right = self.parse_unary()?;
                     expr = Expr::BinExpr(Box::from(expr), BinOp::Divide, Box::from(right));
                 }
-                _ => break
+                _ => break,
             }
         }
         Ok(expr)
@@ -419,20 +421,18 @@ impl<'a> Parser<'a> {
                 self.advance();
                 let expr = self.parse_unary()?;
                 Ok(Expr::UnaryExpr(UnaryOp::UnaryMinus, Box::from(expr)))
-            },
+            }
             Token::Plus => {
                 self.advance();
                 let expr = self.parse_unary()?;
                 Ok(Expr::UnaryExpr(UnaryOp::UnaryPlus, Box::from(expr)))
-            },
+            }
             Token::Not => {
                 self.advance();
                 let expr = self.parse_unary()?;
                 Ok(Expr::UnaryExpr(UnaryOp::Not, Box::from(expr)))
-            },
-            _ => {
-                self.parse_call()
-            },
+            }
+            _ => self.parse_call(),
         }
     }
     fn parse_call(&mut self) -> Result<Expr, ()> {
@@ -448,18 +448,18 @@ impl<'a> Parser<'a> {
                         arguments.push(self.parse_expr()?);
                         if arguments.len() > 255 {
                             self.error("Cannot have more than 255 arguments");
-                            return Err(())
+                            return Err(());
                         }
                     }
                 }
                 if self.peek() != Token::RParen {
                     self.error("Expected ')' after arguments");
-                    return Err(())
+                    return Err(());
                 }
                 self.advance();
                 expr = Expr::CallExpr(Box::from(expr), arguments);
             } else {
-                break
+                break;
             }
         }
         Ok(expr)
@@ -469,15 +469,15 @@ impl<'a> Parser<'a> {
             Token::Ident(ident) => {
                 self.advance();
                 Ok(Expr::IdentExpr(Ident(ident)))
-            },
+            }
             Token::BooleanLiteral(literal) => {
                 self.advance();
                 Ok(Expr::LiteralExpr(Literal::BoolLiteral(literal)))
-            },
+            }
             Token::IntLiteral(literal) => {
                 self.advance();
                 Ok(Expr::LiteralExpr(Literal::IntLiteral(literal)))
-            },
+            }
             Token::StringLiteral(literal) => {
                 self.advance();
                 Ok(Expr::LiteralExpr(Literal::StringLiteral(literal)))
@@ -489,13 +489,13 @@ impl<'a> Parser<'a> {
                     Token::RParen => {
                         self.advance();
                         Ok(expr)
-                    },
+                    }
                     _ => {
                         self.error("Expected ')' after expression");
                         Err(())
-                    },
+                    }
                 }
-            },
+            }
             _ => {
                 self.advance();
                 self.error("Unexpected Token");
