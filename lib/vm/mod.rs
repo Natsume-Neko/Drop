@@ -1,14 +1,9 @@
-#![allow(unused)]
-use crate::vm::opcode::{FunctionObject, Opcode, Value};
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use crate::vm::opcode::{FunctionObject, Opcode, Scope, Value};
+use std::{cell::RefCell, rc::Rc};
 
 pub mod opcode;
 
-#[derive(Clone)]
-pub struct Scope {
-    variables: HashMap<String, Option<Value>>,
-    upvalues: Option<Rc<RefCell<Scope>>>,
-}
+
 
 pub struct VM {
     code: Vec<Opcode>,
@@ -17,39 +12,26 @@ pub struct VM {
     frames: Vec<CallFrame>,
 
     ip: usize,
-    top: usize,
 }
 
 pub struct CallFrame {
     code: Vec<Opcode>,
+    scope: Rc<RefCell<Scope>>,
     top: usize,
     ip: usize,
 }
 
 impl CallFrame {
-    pub fn new(code: Vec<Opcode>, top: usize, ip: usize) -> Self {
-        Self { code, top, ip }
+    pub fn new(code: Vec<Opcode>, scope: Rc<RefCell<Scope>>,top: usize, ip: usize) -> Self {
+        Self { code, scope, top, ip }
     }
 }
 
-impl Scope {
-    fn new() -> Self {
-        Self {
-            variables: HashMap::new(),
-            upvalues: None,
-        }
-    }
 
-    fn new_child(upvalues: Rc<RefCell<Scope>>) -> Self {
-        Self {
-            variables: HashMap::new(),
-            upvalues: Some(upvalues),
-        }
-    }
-}
 
 impl VM {
     pub fn new(code: Vec<Opcode>) -> Self {
+        let scope = Rc::new(RefCell::new(Scope::new()));
         let print_func = FunctionObject::new(
             vec!["value".to_string()],
             vec![
@@ -57,18 +39,18 @@ impl VM {
                 Opcode::Print,
                 Opcode::Return,
             ],
+            Rc::new(RefCell::new(Scope::new())),
         );
-        let mut scope = Scope::new();
         scope
+            .borrow_mut()
             .variables
             .insert("print".to_string(), Some(Value::Function(print_func)));
         Self {
             code,
             stack: vec![],
-            scope: Rc::new(RefCell::new(scope)),
+            scope,
             frames: vec![],
             ip: 0,
-            top: 0,
         }
     }
 
@@ -118,11 +100,20 @@ impl VM {
             }
             Opcode::Store(name) => {
                 let mut scope = self.scope.clone();
-                if !scope.borrow().variables.contains_key(&name) {
-                    panic!("No such variable: {}", name);
+                loop {
+                    let mut scope_borrow = scope.borrow_mut();
+                    if scope_borrow.variables.contains_key(&name) {
+                        let value = self.stack.last().unwrap().clone();
+                        scope_borrow.variables.insert(name, Some(value));
+                        break;
+                    }
+                    if scope_borrow.upvalues.is_none() {
+                        panic!("No such variable: {}", name);
+                    }
+                    let parent = scope_borrow.upvalues.clone();
+                    drop(scope_borrow);
+                    scope = parent.unwrap();
                 }
-                let value = self.stack.last().unwrap().clone();
-                scope.borrow_mut().variables.insert(name, Some(value));
                 self.ip + 1
             }
             Opcode::Register(name) => {
@@ -130,8 +121,7 @@ impl VM {
                 self.ip + 1
             }
             Opcode::StoreFunction(name, params, codes) => {
-                let scope = Rc::new(RefCell::new(Scope::new_child(self.scope.clone())));
-                let func = FunctionObject::new(params, codes);
+                let func = FunctionObject::new(params, codes, self.scope.clone());
                 self.scope
                     .borrow_mut()
                     .variables
@@ -139,7 +129,7 @@ impl VM {
                 self.ip + 1
             }
             Opcode::Call(num_args) => {
-                let mut func = match self.stack.pop() {
+                let func = match self.stack.pop() {
                     Some(val) => match val {
                         Value::Function(func) => func,
                         _ => panic!("Can only call a function variable"),
@@ -149,7 +139,7 @@ impl VM {
                 if num_args != func.params.len() {
                     panic!("The number of args is not true")
                 }
-                let new_scope = Rc::new(RefCell::new(Scope::new_child(self.scope.clone())));
+                let new_scope = Rc::new(RefCell::new(Scope::new_child(func.up_scope.clone())));
                 for param in func.params.iter().rev() {
                     let arg = match self.stack.pop() {
                         Some(val) => val,
@@ -162,8 +152,7 @@ impl VM {
                 }
                 let mut old_code = func.codes;
                 std::mem::swap(&mut self.code, &mut old_code);
-                let callframe = CallFrame::new(old_code, self.top, self.ip);
-                self.top = self.stack.len();
+                let callframe = CallFrame::new(old_code, self.scope.clone(), self.stack.len(), self.ip);
                 self.scope = new_scope;
                 self.frames.push(callframe);
 
@@ -174,21 +163,19 @@ impl VM {
                     Some(frame) => frame,
                     None => panic!("Return should live in a function"),
                 };
-                if self.stack.len() > frame.top + 1 || self.stack.len() < frame.top {
-                    panic!("Unknown Error: the call stack overflow or underflow (from a function return)")
+                if self.stack.len() > frame.top + 1 {
+                    panic!("Unknown Error: the call stack overflow (from a function return)")
+                }
+                if self.stack.len() < frame.top {
+                    panic!("Unknown Error: the call stack underflow (from a function return)")
                 }
                 if self.stack.len() == frame.top {
                     self.stack.push(Value::None);
                 }
-                self.top = frame.top;
-                let old_scope = self.scope.clone();
-                let new_scope = old_scope.borrow().upvalues.clone();
-                let new_scope = match new_scope {
-                    Some(parent) => parent,
-                    _ => panic!("Cannot end the root scope"),
-                };
-                self.scope = new_scope;
-                std::mem::replace(&mut self.code, frame.code);
+                // println!("{:?}", self.stack);
+                // println!("{:?}", self.scope);
+                self.scope = frame.scope.clone();
+                let _ = std::mem::replace(&mut self.code, frame.code);
                 frame.ip + 1
             }
             Opcode::BeginScope => {
@@ -224,11 +211,11 @@ impl VM {
                 _ => panic!("Unknown Error: stack empty"),
             },
             Opcode::Add => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -256,11 +243,11 @@ impl VM {
                 self.ip + 1
             }
             Opcode::Subtract => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -281,11 +268,11 @@ impl VM {
                 self.ip + 1
             }
             Opcode::Multiply => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -306,11 +293,11 @@ impl VM {
                 self.ip + 1
             }
             Opcode::Divide => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -331,11 +318,11 @@ impl VM {
                 self.ip + 1
             }
             Opcode::Less => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -360,11 +347,11 @@ impl VM {
                 self.ip + 1
             }
             Opcode::Greater => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -389,11 +376,11 @@ impl VM {
                 self.ip + 1
             }
             Opcode::LessEqual => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -420,11 +407,11 @@ impl VM {
                 self.ip + 1
             }
             Opcode::GreaterEqual => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -451,11 +438,11 @@ impl VM {
                 self.ip + 1
             }
             Opcode::Equal => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -482,11 +469,11 @@ impl VM {
                 self.ip + 1
             }
             Opcode::NotEqual => {
-                let value1 = match self.stack.pop() {
+                let value2 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
-                let value2 = match self.stack.pop() {
+                let value1 = match self.stack.pop() {
                     Some(value) => value,
                     _ => panic!("Unknown Error: stack empty"),
                 };
@@ -549,7 +536,6 @@ impl VM {
                 println!("{}", value);
                 self.ip + 1
             }
-            _ => unimplemented!(),
         }
     }
 }

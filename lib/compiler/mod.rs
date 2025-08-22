@@ -67,11 +67,11 @@ impl Compiler {
             _ => unreachable!(),
         };
         self.compile_block(body);
-        let pos1 = self.codes.len();
-        self.codes[backpatch1] = Opcode::JumpIfFalse(pos1);
         match alt {
             Some(content) => {
                 self.emit(Opcode::Jump(0));
+                let pos1 = self.codes.len();
+                self.codes[backpatch1] = Opcode::JumpIfFalse(pos1);
                 let backpatch2 = self.codes.len() - 1;
                 let alt_body = match content.as_ref() {
                     Stmt::BlockStmt(block) => block,
@@ -81,7 +81,10 @@ impl Compiler {
                 let pos2 = self.codes.len();
                 self.codes[backpatch2] = Opcode::Jump(pos2);
             }
-            None => (),
+            None => {
+                let pos1 = self.codes.len();
+                self.codes[backpatch1] = Opcode::JumpIfFalse(pos1);
+            },
         };
     }
 

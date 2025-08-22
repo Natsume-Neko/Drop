@@ -1,6 +1,4 @@
-use std::{cell::RefCell, fmt::Display, rc::Rc};
-
-use crate::vm::Scope;
+use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
 
 #[derive(Clone, Debug)]
 pub enum Opcode {
@@ -51,19 +49,19 @@ impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             Value::Int(value) => {
-                write!(f, "{}", value);
+                write!(f, "{}", value)?;
             }
             Value::Boolean(value) => {
-                write!(f, "{}", value);
+                write!(f, "{}", value)?;
             }
             Value::Function(_) => {
-                write!(f, "FunctionObject");
+                write!(f, "FunctionObject")?;
             }
             Value::String(value) => {
-                write!(f, "{}", value);
+                write!(f, "{}", value)?;
             }
             Value::None => {
-                write!(f, "None");
+                write!(f, "None")?;
             }
         }
         Ok(())
@@ -71,13 +69,36 @@ impl Display for Value {
 }
 
 #[derive(Clone, Debug)]
+pub struct Scope {
+    pub variables: HashMap<String, Option<Value>>,
+    pub upvalues: Option<Rc<RefCell<Scope>>>,
+}
+
+impl Scope {
+    pub fn new() -> Self {
+        Self {
+            variables: HashMap::new(),
+            upvalues: None,
+        }
+    }
+
+    pub fn new_child(upvalues: Rc<RefCell<Scope>>) -> Self {
+        Self {
+            variables: HashMap::new(),
+            upvalues: Some(upvalues),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct FunctionObject {
     pub params: Vec<String>,
     pub codes: Vec<Opcode>,
+    pub up_scope: Rc<RefCell<Scope>>
 }
 
 impl FunctionObject {
-    pub fn new(params: Vec<String>, codes: Vec<Opcode>) -> Self {
-        Self { params, codes }
+    pub fn new(params: Vec<String>, codes: Vec<Opcode>, scope: Rc<RefCell<Scope>>) -> Self {
+        Self { params, codes, up_scope: scope }
     }
 }

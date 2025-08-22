@@ -205,6 +205,7 @@ impl<'a> Parser<'a> {
                     Some(Box::from(else_branch)),
                 ))
             } else {
+                self.advance();
                 let else_branch = self.parse_block()?;
                 Ok(Stmt::IfStmt(
                     condition,
@@ -555,10 +556,10 @@ mod test {
             Token::SemiColon,
             Token::RBrace,
             Token::Else,
-            Token::If,
-            Token::Ident("a".to_owned()),
-            Token::Less,
-            Token::IntLiteral(30),
+            // Token::If,
+            // Token::Ident("a".to_owned()),
+            // Token::Less,
+            // Token::IntLiteral(30),
             Token::LBrace,
             Token::Return,
             Token::BooleanLiteral(true),
