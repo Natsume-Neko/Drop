@@ -80,7 +80,7 @@ fn run_all_3() {
                 return fib(n - 1) + fib(n - 2);\
             }\
             fn main() {\
-                print(fib(21));\
+                print(fib(35));\
             }\
             main();\
             ",
